@@ -19,7 +19,7 @@ metadata \
 component_health \
 
 # PERFORMANCE test app list
-PERF_TEST_APPS=actorfeatures actorjava tester service_invocation_http service_invocation_grpc
+PERF_TEST_APPS=
 
 # E2E test app root directory
 E2E_TESTAPP_DIR=./tests/apps
@@ -28,14 +28,7 @@ E2E_TESTAPP_DIR=./tests/apps
 PERF_TESTAPP_DIR=./tests/apps/perf
 
 # PERFORMANCE tests
-PERF_TESTS=actor_timer \
-actor_reminder \
-actor_activation \
-service_invocation_http \
-service_invocation_grpc \
-state_get_grpc \
-state_get_http \
-pubsub_publish_grpc \
+PERF_TESTS=
 
 KUBECTL=kubectl
 
