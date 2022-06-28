@@ -13,38 +13,8 @@
 
 # E2E test app list
 # e.g. E2E_TEST_APPS=hellodapr state service_invocation
-E2E_TEST_APPS=actorjava \
-actordotnet \
-actorpython \
-actorphp \
-hellodapr \
-stateapp \
+E2E_TEST_APPS=
 secretapp \
-service_invocation \
-service_invocation_grpc \
-service_invocation_grpc_proxy_client \
-service_invocation_grpc_proxy_server \
-binding_input \
-binding_input_grpc \
-binding_output \
-pubsub-publisher \
-pubsub-subscriber \
-pubsub-subscriber_grpc \
-pubsub-subscriber-routing \
-pubsub-subscriber-routing_grpc \
-actorapp \
-actorclientapp \
-actorfeatures \
-actorinvocationapp \
-actorreentrancy \
-runtime \
-runtime_init \
-middleware \
-job-publisher \
-resiliencyapp \
-resiliencyapp_grpc \
-injectorapp \
-injectorapp-init \
 metadata \
 
 # PERFORMANCE test app list
