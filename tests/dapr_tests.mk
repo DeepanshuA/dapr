@@ -13,7 +13,7 @@
 
 # E2E test app list
 # e.g. E2E_TEST_APPS=hellodapr state service_invocation
-E2E_TEST_APPS= secretapp metadata component_health
+E2E_TEST_APPS= secretapp metadata componenthealth
 
 # PERFORMANCE test app list
 PERF_TEST_APPS=

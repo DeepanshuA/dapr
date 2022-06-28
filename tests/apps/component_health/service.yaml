@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
       - name: componenthealth
-        image: dapriotest/e2e-componenthealth
+        image: YOUR_REGISTRY/e2e-componenthealth:dev
         ports:
         - containerPort: 3000
         imagePullPolicy: Always
