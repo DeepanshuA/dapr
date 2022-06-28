@@ -37,6 +37,7 @@ import (
 	"github.com/dapr/components-contrib/lock"
 	lock_loader "github.com/dapr/dapr/pkg/components/lock"
 
+	"github.com/dapr/components-contrib/health"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
@@ -83,6 +84,8 @@ type api struct {
 	configurationSubscribe     map[string]chan struct{}
 	transactionalStateStores   map[string]state.TransactionalStore
 	secretStores               map[string]secretstores.SecretStore
+	inputBindings              map[string]bindings.InputBinding
+	outputBindings             map[string]bindings.OutputBinding
 	secretsConfiguration       map[string]config.SecretsScope
 	actor                      actors.Actors
 	pubsubAdapter              runtime_pubsub.Adapter
@@ -119,6 +122,7 @@ const (
 	actorTypeParam           = "actorType"
 	actorIDParam             = "actorId"
 	storeNameParam           = "storeName"
+	componentNameParam       = "componentName"
 	stateKeyParam            = "key"
 	configurationKeyParam    = "key"
 	configurationSubscribeID = "configurationSubscribeID"
@@ -143,6 +147,8 @@ func NewAPI(
 	stateStores map[string]state.Store,
 	lockStores map[string]lock.Store,
 	secretStores map[string]secretstores.SecretStore,
+	inputBindings map[string]bindings.InputBinding,
+	outputBindings map[string]bindings.OutputBinding,
 	secretsConfiguration map[string]config.SecretsScope,
 	configurationStores map[string]configuration.Store,
 	pubsubAdapter runtime_pubsub.Adapter,
@@ -167,6 +173,8 @@ func NewAPI(
 		lockStores:                 lockStores,
 		transactionalStateStores:   transactionalStateStores,
 		secretStores:               secretStores,
+		inputBindings:              inputBindings,
+		outputBindings:             outputBindings,
 		secretsConfiguration:       secretsConfiguration,
 		configurationStores:        configurationStores,
 		configurationSubscribe:     make(map[string]chan struct{}),
@@ -413,6 +421,18 @@ func (a *api) constructHealthzEndpoints() []Endpoint {
 			Route:   "healthz/outbound",
 			Version: apiVersionV1,
 			Handler: a.onGetOutboundHealthz,
+		},
+		{
+			Methods: []string{fasthttp.MethodGet},
+			Route:   "healthz/components/{componentName}",
+			Version: apiVersionV1alpha1,
+			Handler: a.onGetComponentHealthz,
+		},
+		{
+			Methods: []string{fasthttp.MethodGet},
+			Route:   "healthz/components",
+			Version: apiVersionV1alpha1,
+			Handler: a.onGetAllComponentsHealthz,
 		},
 	}
 }
@@ -2027,6 +2047,117 @@ func (a *api) onGetOutboundHealthz(reqCtx *fasthttp.RequestCtx) {
 	} else {
 		respond(reqCtx, withEmpty())
 	}
+}
+
+func (a *api) getComponent(componentKind string, componentName string) (component interface{}) {
+	switch componentKind {
+	case "state":
+		if statestore := a.stateStores[componentName]; statestore != nil {
+			component = statestore
+		}
+	case "pubsub":
+		if pubsub := a.pubsubAdapter.GetPubSub(componentName); pubsub != nil {
+			component = pubsub
+		}
+	case "secretstores":
+		if secretstore := a.secretStores[componentName]; secretstore != nil {
+			component = secretstore
+		}
+	case "bindings":
+		if inputbinding := a.inputBindings[componentName]; inputbinding != nil {
+			component = inputbinding
+		} else if outputbinding := a.outputBindings[componentName]; outputbinding != nil {
+			component = outputbinding
+		}
+	}
+	return
+}
+
+func (a *api) onGetAllComponentsHealthz(reqCtx *fasthttp.RequestCtx) {
+	components := a.getComponentsFn()
+	hresp := ComponentHealthResponse{
+		Results: make([]ComponentHealth, len(components)),
+	}
+	i := 0
+	for _, comp := range components {
+		a.allComponentsHealthResponsePopulator(strings.Split(comp.Spec.Type, ".")[0], hresp, i, comp.Name)
+		i++
+	}
+	b, _ := json.Marshal(hresp)
+	respond(reqCtx, withJSON(fasthttp.StatusOK, b))
+}
+
+func (a *api) allComponentsHealthResponsePopulator(componentType string, hresp ComponentHealthResponse, ind int, name string) {
+	status, err := a.onGetComponentHealthzUtil(nil, componentType, name)
+	hresp.Results[ind].Component = name
+	hresp.Results[ind].Type = componentType
+	hresp.Results[ind].Status = status
+	if err != nil {
+		hresp.Results[ind].Error = err.Error()
+	}
+}
+
+func (a *api) onGetComponentHealthz(reqCtx *fasthttp.RequestCtx) {
+	componentName := reqCtx.UserValue(componentNameParam).(string)
+	components := a.getComponentsFn()
+	found := false
+	for _, comp := range components {
+		if componentName == comp.Name {
+			found = true
+			a.onGetComponentHealthzUtil(reqCtx, strings.Split(comp.Spec.Type, ".")[0], comp.Name)
+			break
+		}
+	}
+	if !found {
+		msg := NewErrorResponse(
+			fmt.Sprintf("ERR_COMPONENT_WITH_NAME_%s_NOT_FOUND", componentName),
+			fmt.Sprintf(messages.ErrComponentWitNameNotFound, componentName))
+		if reqCtx != nil {
+			respond(reqCtx, withError(fasthttp.StatusBadRequest, msg))
+		}
+		log.Debug(msg)
+	}
+}
+
+func (a *api) onGetComponentHealthzUtil(reqCtx *fasthttp.RequestCtx, componentKind string, componentName string) (healthStatus string, err error) {
+	component := a.getComponent(componentKind, componentName)
+
+	if component == nil {
+		msg := NewErrorResponse(
+			fmt.Sprintf("ERR_COMPONENT_%s_NOT_FOUND", componentKind),
+			fmt.Sprintf(messages.ErrComponentNotFound, componentKind, componentName))
+		if reqCtx != nil {
+			respond(reqCtx, withError(fasthttp.StatusBadRequest, msg))
+		}
+		log.Debug(msg)
+		return "Undefined", fmt.Errorf("ERR_COMPONENT_%s_NOT_FOUND", componentKind)
+	}
+
+	if pinger, ok := component.(health.Pinger); ok {
+		err := pinger.Ping()
+		if err != nil {
+			msg := NewErrorResponse(
+				fmt.Sprintf("ERR_%s_HEALTH_NOT_OK", strings.ToUpper(componentKind)),
+				fmt.Sprintf(messages.ErrComponentHealthNotOK, componentName))
+			if reqCtx != nil {
+				respond(reqCtx, withError(fasthttp.StatusInternalServerError, msg))
+			}
+			log.Debug(msg)
+			return "Not_Ok", fmt.Errorf("ERR_%s_HEALTH_NOT_OK", componentKind)
+		}
+		if reqCtx != nil {
+			respond(reqCtx, withEmpty())
+		}
+		return "Ok", nil
+	}
+	msg := NewErrorResponse(
+		fmt.Sprintf("ERR_PING_NOT_IMPLEMENTED_BY_%s", componentName),
+		fmt.Sprintf(messages.ErrComponentNotImplemented, componentName))
+	if reqCtx != nil {
+		respond(reqCtx, withError(fasthttp.StatusNotImplemented, msg))
+	}
+	log.Debug(msg)
+	return "Undefined", fmt.Errorf("ERR_PING_NOT_IMPLEMENTED_BY_%s", componentKind)
 }
 
 func getMetadataFromRequest(reqCtx *fasthttp.RequestCtx) map[string]string {

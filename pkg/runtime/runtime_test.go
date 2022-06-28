@@ -196,6 +196,10 @@ func (m *MockKubernetesStateStore) Close() error {
 	return nil
 }
 
+func (m *MockKubernetesStateStore) Ping() error {
+	return nil
+}
+
 func NewMockKubernetesStore() secretstores.SecretStore {
 	return &MockKubernetesStateStore{}
 }
@@ -3592,6 +3596,10 @@ func (m *mockPublishPubSub) Close() error {
 }
 
 func (m *mockPublishPubSub) Features() []pubsub.Feature {
+	return nil
+}
+
+func (m *mockPublishPubSub) Ping() error {
 	return nil
 }
 

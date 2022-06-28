@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/dapr/components-contrib/lock"
 
@@ -164,6 +166,10 @@ func (m *mockGRPCAPI) InvokeService(ctx context.Context, in *runtimev1pb.InvokeS
 
 func (m *mockGRPCAPI) InvokeBinding(ctx context.Context, in *runtimev1pb.InvokeBindingRequest) (*runtimev1pb.InvokeBindingResponse, error) {
 	return &runtimev1pb.InvokeBindingResponse{}, nil
+}
+
+func (m *mockGRPCAPI) CheckHealthAlpha1(ctx context.Context, in *runtimev1pb.CheckHealthRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
 }
 
 func (m *mockGRPCAPI) GetState(ctx context.Context, in *runtimev1pb.GetStateRequest) (*runtimev1pb.GetStateResponse, error) {
@@ -1418,6 +1424,157 @@ func TestSubscribeConfiguration(t *testing.T) {
 				}
 				assert.Equal(t, tt.expectedError, status.Code(err))
 				assert.Error(t, err, "Expected error")
+			}
+		})
+	}
+}
+
+func TestCheckStoreHealth(t *testing.T) {
+	fakeStore := &daprt.MockStateStore{}
+	fakeSecretStore := daprt.FakeSecretStore{}
+	fakeSecretStores := map[string]secretstores.SecretStore{
+		"secretstore1": fakeSecretStore,
+	}
+	secretsConfiguration := map[string]config.SecretsScope{
+		"secretstore1": {
+			DefaultAccess: config.AllowAccess,
+			DeniedSecrets: []string{"not-allowed"},
+		},
+	}
+
+	fakeStore.On("Ping", mock.MatchedBy(func(req *state.GetRequest) bool {
+		return req.Key == "fakeAPI||good-key"
+	})).Return(
+		&state.GetResponse{
+			Data: []byte("test-data"),
+			ETag: ptr.String("test-etag"),
+		}, nil)
+
+	fakeAPI := &api{
+		id:                   "fakeAPI",
+		stateStores:          map[string]state.Store{"store1": fakeStore},
+		secretStores:         fakeSecretStores,
+		secretsConfiguration: secretsConfiguration,
+		pubsubAdapter: &daprt.MockPubSubAdapter{
+			PublishFn: func(req *pubsub.PublishRequest) error {
+				return nil
+			},
+			GetPubSubFn: func(pubsubName string) pubsub.PubSub {
+				return &daprt.MockPubSub{}
+			},
+		},
+		getComponentsFn: func() []components_v1alpha.Component {
+			return []components_v1alpha.Component{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "store1",
+					},
+					Spec: components_v1alpha.ComponentSpec{
+						Type:    "state.mockType1",
+						Version: "v1.0",
+						Metadata: []components_v1alpha.MetadataItem{
+							{
+								Name: "actorMockComponent1",
+								Value: components_v1alpha.DynamicValue{
+									JSON: v1.JSON{Raw: []byte("true")},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "pubsubname",
+					},
+					Spec: components_v1alpha.ComponentSpec{
+						Type:    "pubsub.mockType2",
+						Version: "v1.0",
+						Metadata: []components_v1alpha.MetadataItem{
+							{
+								Name: "actorMockComponent2",
+								Value: components_v1alpha.DynamicValue{
+									JSON: v1.JSON{Raw: []byte("true")},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "secretstore1",
+					},
+					Spec: components_v1alpha.ComponentSpec{
+						Type:    "secretstores.mockType3",
+						Version: "v1.0",
+						Metadata: []components_v1alpha.MetadataItem{
+							{
+								Name: "actorMockComponent2",
+								Value: components_v1alpha.DynamicValue{
+									JSON: v1.JSON{Raw: []byte("true")},
+								},
+							},
+						},
+					},
+				},
+			}
+		},
+	}
+	port, _ := freeport.GetFreePort()
+	server := startDaprAPIServer(port, fakeAPI, "")
+	defer server.Stop()
+
+	clientConn := createTestClient(port)
+	defer clientConn.Close()
+
+	client := runtimev1pb.NewDaprClient(clientConn)
+
+	testCases := []struct {
+		testName      string
+		componentKind string
+		componentName string
+		errorExcepted bool
+		expectedError codes.Code
+	}{
+		{
+			testName:      "statestore success health check",
+			componentName: "store1",
+			errorExcepted: false,
+			expectedError: codes.OK,
+		},
+		{
+			testName:      "not found store",
+			componentName: "no-store",
+			errorExcepted: true,
+			expectedError: codes.InvalidArgument,
+		},
+		{
+			testName:      "pubsub success health check",
+			componentName: "pubsubname",
+			errorExcepted: false,
+			expectedError: codes.OK,
+		},
+		{
+			testName:      "secretstore success health check",
+			componentName: "secretstore1",
+			errorExcepted: false,
+			expectedError: codes.OK,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.testName, func(t *testing.T) {
+			req := &runtimev1pb.CheckHealthRequest{
+				ComponentName: tt.componentName,
+			}
+
+			_, err := client.CheckHealthAlpha1(context.Background(), req)
+
+			if !tt.errorExcepted {
+				assert.NoError(t, err, "Expected no error")
+				assert.Nil(t, err)
+			} else {
+				assert.Error(t, err, "Expected error")
+				assert.Equal(t, tt.expectedError, status.Code(err))
 			}
 		})
 	}
@@ -3154,7 +3311,7 @@ func TestUnlockResponseToGrpcResponse(t *testing.T) {
 
 func TestTryLock(t *testing.T) {
 	t.Run("error when lock store not configured", func(t *testing.T) {
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.TryLockRequest{
 			StoreName: "abc",
 		}
@@ -3167,7 +3324,7 @@ func TestTryLock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.TryLockRequest{
 			StoreName: "abc",
 		}
@@ -3180,7 +3337,7 @@ func TestTryLock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"abc": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"abc": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.TryLockRequest{
 			StoreName:  "abc",
 			ResourceId: "resource",
@@ -3194,7 +3351,7 @@ func TestTryLock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"abc": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"abc": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 
 		req := &runtimev1pb.TryLockRequest{
 			StoreName:  "abc",
@@ -3210,7 +3367,7 @@ func TestTryLock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 
 		req := &runtimev1pb.TryLockRequest{
 			StoreName:       "abc",
@@ -3236,7 +3393,7 @@ func TestTryLock(t *testing.T) {
 				Success: true,
 			}, nil
 		})
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.TryLockRequest{
 			StoreName:       "mock",
 			ResourceId:      "resource",
@@ -3251,7 +3408,7 @@ func TestTryLock(t *testing.T) {
 
 func TestUnlock(t *testing.T) {
 	t.Run("error when lock store not configured", func(t *testing.T) {
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 
 		req := &runtimev1pb.UnlockRequest{
 			StoreName: "abc",
@@ -3265,7 +3422,7 @@ func TestUnlock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 
 		req := &runtimev1pb.UnlockRequest{
 			StoreName: "abc",
@@ -3279,7 +3436,7 @@ func TestUnlock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.UnlockRequest{
 			StoreName:  "abc",
 			ResourceId: "resource",
@@ -3293,7 +3450,7 @@ func TestUnlock(t *testing.T) {
 		defer ctl.Finish()
 
 		mockLockStore := daprt.NewMockStore(ctl)
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 
 		req := &runtimev1pb.UnlockRequest{
 			StoreName:  "abc",
@@ -3317,7 +3474,7 @@ func TestUnlock(t *testing.T) {
 				Status: lock.Success,
 			}, nil
 		})
-		api := NewAPI("", nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
+		api := NewAPI("", nil, nil, nil, nil, nil, nil, nil, nil, map[string]lock.Store{"mock": mockLockStore}, nil, nil, nil, nil, config.TracingSpec{}, nil, "", nil, nil, nil)
 		req := &runtimev1pb.UnlockRequest{
 			StoreName:  "mock",
 			ResourceId: "resource",

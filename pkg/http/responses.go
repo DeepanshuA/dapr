@@ -49,6 +49,17 @@ type QueryItem struct {
 	Error string          `json:"error,omitempty"`
 }
 
+type ComponentHealthResponse struct {
+	Results []ComponentHealth `json:"results"`
+}
+
+type ComponentHealth struct {
+	Component string `json:"componentName"`
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+}
+
 type option = func(ctx *fasthttp.RequestCtx)
 
 // withEtag sets etag header.
