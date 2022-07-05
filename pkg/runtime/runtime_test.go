@@ -2943,6 +2943,20 @@ func (m *mockSubscribePubSub) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
+// TODO @mukundansundar to fix the BatchPublish count logic in the following function
+func (m *mockSubscribePubSub) BatchPublish(req *pubsub.BatchPublishRequest) error {
+	m.pubCount[req.Topic]++
+	if handler, ok := m.handlers[req.Topic]; ok {
+		pubsubMsg := &pubsub.NewMessage{
+			Data:  req.Data[0],
+			Topic: req.Topic,
+		}
+		handler(context.Background(), pubsubMsg)
+	}
+
+	return nil
+}
+
 // Subscribe is a mock subscribe method.
 func (m *mockSubscribePubSub) Subscribe(_ context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	m.handlers[req.Topic] = handler
@@ -3591,6 +3605,11 @@ func (m *mockPublishPubSub) Init(metadata pubsub.Metadata) error {
 
 // Publish is a mock publish method.
 func (m *mockPublishPubSub) Publish(req *pubsub.PublishRequest) error {
+	return nil
+}
+
+// Publish is a mock publish method.
+func (m *mockPublishPubSub) BatchPublish(req *pubsub.BatchPublishRequest) error {
 	return nil
 }
 

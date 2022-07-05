@@ -1792,6 +1792,7 @@ func TestDeleteState(t *testing.T) {
 	}
 }
 
+// TODO @mukundansundar fix batch publish in MockPubSubAdapter in following function
 func TestPublishTopic(t *testing.T) {
 	port, _ := freeport.GetFreePort()
 

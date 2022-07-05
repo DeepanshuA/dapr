@@ -1586,6 +1586,22 @@ func (a *DaprRuntime) GetPubSub(pubsubName string) pubsub.PubSub {
 	return a.pubSubs[pubsubName]
 }
 
+func (a *DaprRuntime) BatchPublish(req *pubsub.BatchPublishRequest) error {
+	thepubsub := a.GetPubSub(req.PubsubName)
+	if thepubsub == nil {
+		return runtime_pubsub.NotFoundError{PubsubName: req.PubsubName}
+	}
+
+	if allowed := a.isPubSubOperationAllowed(req.PubsubName, req.Topic, a.scopedPublishings[req.PubsubName]); !allowed {
+		return runtime_pubsub.NotAllowedError{Topic: req.Topic, ID: a.runtimeConfig.ID}
+	}
+
+	policy := a.resiliency.ComponentOutboundPolicy(a.ctx, req.PubsubName)
+	return policy(func(ctx context.Context) (err error) {
+		return a.pubSubs[req.PubsubName].BatchPublish(req)
+	})
+}
+
 func (a *DaprRuntime) isPubSubOperationAllowed(pubsubName string, topic string, scopedTopics []string) bool {
 	inAllowedTopics := false
 

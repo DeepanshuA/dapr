@@ -25,6 +25,12 @@ func (m *MockPubSub) Publish(req *pubsub.PublishRequest) error {
 	return args.Error(0)
 }
 
+// Publish is a mock publish method.
+func (m *MockPubSub) BatchPublish(req *pubsub.BatchPublishRequest) error {
+	args := m.Called(req)
+	return args.Error(0)
+}
+
 // Subscribe is a mock subscribe method.
 func (m *MockPubSub) Subscribe(_ context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	args := m.Called(req, handler)
@@ -48,6 +54,10 @@ func (f *FailingPubsub) Init(metadata pubsub.Metadata) error {
 }
 
 func (f *FailingPubsub) Publish(req *pubsub.PublishRequest) error {
+	return f.Failure.PerformFailure(req.Topic)
+}
+
+func (f *FailingPubsub) BatchPublish(req *pubsub.BatchPublishRequest) error {
 	return f.Failure.PerformFailure(req.Topic)
 }
 
