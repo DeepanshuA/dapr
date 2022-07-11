@@ -59,6 +59,10 @@ func testGetComponentHealth(t *testing.T, compHealthAppExternalURL string) {
 	err = json.Unmarshal(resp, &healthResponse)
 	require.NoError(t, err)
 	for _, health := range healthResponse.Results {
+		log.Printf("Component name is %s ", health.Component)
+		log.Printf("Component Type is %s ", health.Type)
+		log.Printf("Component Status is %s ", health.Status)
+		log.Printf("Component Error is %s ", health.Error)
 		require.NotEmpty(t, health.Component, "component name must not be empty!")
 		require.NotEmpty(t, health.Type, "component type must not be empty!")
 		require.NotEmpty(t, health.Status, "component status must not be empty!")
