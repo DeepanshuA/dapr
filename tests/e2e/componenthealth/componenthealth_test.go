@@ -117,16 +117,14 @@ func testGetComponentHealth(t *testing.T, compHealthAppExternalURL string) {
 		var healthResponse mockAllHealthResponse
 		err = json.Unmarshal(resp, &healthResponse)
 		require.NoError(t, err)
-		if !tc.errorExpected {
-			for _, expectedComponentResult := range tc.compHealthResult {
-				for _, health := range healthResponse.Results {
-					if expectedComponentResult.componentName == health.Component {
-						require.Equal(t, expectedComponentResult.componentType, health.Type, "Expected Type to be equal")
-						if !expectedComponentResult.errorExpected {
-							require.Equal(t, expectedComponentResult.status, health.Status, "Expected Status to be equal")
-						} else {
-							require.Contains(t, string(health.Error), expectedComponentResult.errorString, "Expected error string to be contained")
-						}
+		for _, expectedComponentResult := range tc.compHealthResult {
+			for _, health := range healthResponse.Results {
+				if expectedComponentResult.componentName == health.Component {
+					require.Equal(t, expectedComponentResult.componentType, health.Type, "Expected Type to be equal")
+					if !expectedComponentResult.errorExpected {
+						require.Equal(t, expectedComponentResult.status, health.Status, "Expected Status to be equal")
+					} else {
+						require.Contains(t, string(health.Error), expectedComponentResult.errorString, "Expected error string to be contained")
 					}
 				}
 			}
