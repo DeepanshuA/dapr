@@ -105,7 +105,7 @@ func expectedAllComponentsHealthResult() []componentStatus {
 func testGetComponentHealth(t *testing.T, compHealthAppExternalURL string) {
 
 	for _, tc := range testCases {
-		t.Log("Getting health for %s", tc.testName)
+		t.Log("Getting health for components")
 		url := fmt.Sprintf("%s/test/%s", compHealthAppExternalURL, tc.urlSuffix)
 		resp, err := utils.HTTPGet(url)
 		require.NoError(t, err)
