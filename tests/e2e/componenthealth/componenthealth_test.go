@@ -73,7 +73,6 @@ type componentStatus struct {
 	componentType string
 	errorExpected bool
 	status        string
-	statusCode    string
 	errorString   string
 }
 
@@ -84,7 +83,6 @@ func expectedAllComponentsHealthResult() []componentStatus {
 			"state",
 			false,
 			"Ok",
-			200,
 			"", // no error
 		},
 		{
@@ -92,7 +90,6 @@ func expectedAllComponentsHealthResult() []componentStatus {
 			"pubsub",
 			false,
 			"Ok",
-			200,
 			"", // no error
 		},
 		{
@@ -100,7 +97,6 @@ func expectedAllComponentsHealthResult() []componentStatus {
 			"state",
 			true,
 			"Undefined",
-			200,
 			"ERR_PING_NOT_IMPLEMENTED_BY_state",
 		},
 	}
