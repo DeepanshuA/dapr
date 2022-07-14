@@ -49,23 +49,88 @@ type mockAllHealthResponse struct {
 	Results []mockHealthResponse `json:"results"`
 }
 
+// represents each step in a test since it can make multiple calls.
+// type testCase struct {
+// 	testName         string
+// 	testSuffix       string
+// 	compHealthResult []componentStatus
+// }
+
+var testCases = []struct {
+	testName         string
+	urlSuffix        string
+	compHealthResult []componentStatus
+}{
+	{
+		"all components",
+		"CheckAllComponentsHealthAlpha1",
+		expectedAllComponentsHealthResult(),
+	},
+}
+
+type componentStatus struct {
+	componentName string
+	componentType string
+	errorExpected bool
+	status        string
+	statusCode    string
+	errorString   string
+}
+
+func expectedAllComponentsHealthResult() []componentStatus {
+	return []componentStatus{
+		{
+			"querystatestore",
+			"state",
+			false,
+			"Ok",
+			200,
+			"", // no error
+		},
+		{
+			"dapr-resiliency-pubsub",
+			"pubsub",
+			false,
+			"Ok",
+			200,
+			"", // no error
+		},
+		{
+			"inmemorystate",
+			"state",
+			true,
+			"Undefined",
+			200,
+			"ERR_PING_NOT_IMPLEMENTED_BY_state",
+		},
+	}
+}
+
 func testGetComponentHealth(t *testing.T, compHealthAppExternalURL string) {
-	t.Log("Getting sidecar component health")
-	url := fmt.Sprintf("%s/test/CheckAllComponentsHealthAlpha1", compHealthAppExternalURL)
-	resp, err := utils.HTTPGet(url)
-	require.NoError(t, err)
-	require.NotEmpty(t, resp, "response must not be empty!")
-	var healthResponse mockAllHealthResponse
-	err = json.Unmarshal(resp, &healthResponse)
-	require.NoError(t, err)
-	for _, health := range healthResponse.Results {
-		log.Printf("Component name is %s ", health.Component)
-		log.Printf("Component Type is %s ", health.Type)
-		log.Printf("Component Status is %s ", health.Status)
-		log.Printf("Component Error is %s ", health.Error)
-		require.NotEmpty(t, health.Component, "component name must not be empty!")
-		require.NotEmpty(t, health.Type, "component type must not be empty!")
-		require.NotEmpty(t, health.Status, "component status must not be empty!")
+
+	for _, tc := range testCases {
+		t.Log("Getting health for %s", tc.testName)
+		url := fmt.Sprintf("%s/test/%s", compHealthAppExternalURL, tc.urlSuffix)
+		resp, err := utils.HTTPGet(url)
+		require.NoError(t, err)
+		require.NotEmpty(t, resp, "response must not be empty!")
+		var healthResponse mockAllHealthResponse
+		err = json.Unmarshal(resp, &healthResponse)
+		require.NoError(t, err)
+		if !tc.errorExpected {
+			for _, expectedComponentResult := range tc.compHealthResult {
+				for _, health := range healthResponse.Results {
+					if expectedComponentResult.componentName == health.Component {
+						require.Equal(t, expectedComponentResult.componentType, health.Type, "Expected Type to be equal")
+						if !expectedComponentResult.errorExpected {
+							require.Equal(t, expectedComponentResult.status, health.Status, "Expected Status to be equal")
+						} else {
+							require.Contains(t, string(health.Error), expectedComponentResult.errorString, "Expected error string to be contained")
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

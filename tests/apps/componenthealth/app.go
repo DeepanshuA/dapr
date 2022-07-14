@@ -34,7 +34,6 @@ const appPort = 3000
 
 // kubernetes is the name of the secret store
 const (
-	/* #nosec */
 	componentHealthcheckUrl = "http://localhost:3500/v1.0-alpha1/healthz/components"
 )
 
@@ -61,11 +60,14 @@ func indexHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func getAllComponentsHealth() (data mockAllHealthResponse, err error) {
+func getComponentsHealth(in string) (data mockAllHealthResponse, err error) {
 	var healthResponse mockAllHealthResponse
-	res, err := http.Get(componentHealthcheckUrl)
-	if err != nil {
-		return healthResponse, fmt.Errorf("could not get component healthcheck %s", err.Error())
+	var res *http.Response
+	var errGet error
+	res, errGet = http.Get(componentHealthcheckUrl)
+
+	if errGet != nil {
+		return healthResponse, fmt.Errorf("could not get component healthcheck %s", errGet.Error())
 	}
 	defer res.Body.Close()
 
@@ -97,7 +99,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	cmd := mux.Vars(r)["command"]
 	switch cmd {
 	case "CheckAllComponentsHealthAlpha1":
-		healthResponse, err = getAllComponentsHealth()
+		healthResponse, err = getComponentsHealth("ALL")
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			res.Message = err.Error()
