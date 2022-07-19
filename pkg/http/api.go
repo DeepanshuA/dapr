@@ -36,6 +36,7 @@ import (
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/lock"
 	lock_loader "github.com/dapr/dapr/pkg/components/lock"
+	"github.com/dapr/dapr/pkg/version"
 
 	"github.com/dapr/components-contrib/health"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
@@ -97,6 +98,7 @@ type api struct {
 	tracingSpec                config.TracingSpec
 	shutdown                   func()
 	getComponentsCapabilitesFn func() map[string][]string
+	daprRunTimeVersion         string
 }
 
 type registeredComponent struct {
@@ -135,6 +137,7 @@ const (
 	traceparentHeader        = "traceparent"
 	tracestateHeader         = "tracestate"
 	daprAppID                = "dapr-app-id"
+	daprRuntimeVersionKey    = "daprRuntimeVersion"
 )
 
 // NewAPI returns a new API.
@@ -185,6 +188,7 @@ func NewAPI(
 		tracingSpec:                tracingSpec,
 		shutdown:                   shutdown,
 		getComponentsCapabilitesFn: getComponentsCapabilitiesFn,
+		daprRunTimeVersion:         version.Version(),
 	}
 
 	metadataEndpoints := api.constructMetadataEndpoints()
@@ -1006,7 +1010,7 @@ func (a *api) onUnsubscribeConfiguration(reqCtx *fasthttp.RequestCtx) {
 		log.Debug(err)
 		return
 	}
-	subscribeID := string(reqCtx.QueryArgs().Peek(configurationSubscribeID))
+	subscribeID := reqCtx.UserValue(configurationSubscribeID).(string)
 
 	req := configuration.UnsubscribeRequest{
 		ID: subscribeID,
@@ -1019,7 +1023,14 @@ func (a *api) onUnsubscribeConfiguration(reqCtx *fasthttp.RequestCtx) {
 	elapsed := diag.ElapsedSince(start)
 	diag.DefaultComponentMonitoring.ConfigurationInvoked(context.Background(), storeName, diag.ConfigurationUnsubscribe, err == nil, elapsed)
 
-	respond(reqCtx, withJSON(fasthttp.StatusOK, nil))
+	if err != nil {
+		msg := NewErrorResponse("ERR_CONFIGURATION_UNSUBSCRIBE", fmt.Sprintf(messages.ErrConfigurationUnsubscribe, subscribeID, err.Error()))
+		respond(reqCtx, withError(fasthttp.StatusInternalServerError, msg))
+		log.Debug(msg)
+		return
+	}
+
+	respond(reqCtx, withEmpty())
 }
 
 func (a *api) onGetConfiguration(reqCtx *fasthttp.RequestCtx) {
@@ -1759,7 +1770,7 @@ func (a *api) onDirectActorMessage(reqCtx *fasthttp.RequestCtx) {
 		resp, rErr = a.actor.Call(ctx, req)
 		return rErr
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, actors.ErrDaprResponseHeader) {
 		msg := NewErrorResponse("ERR_ACTOR_INVOKE_METHOD", fmt.Sprintf(messages.ErrActorInvoke, err))
 		respond(reqCtx, withError(fasthttp.StatusInternalServerError, msg))
 		log.Debug(msg)
@@ -1827,11 +1838,11 @@ func (a *api) onGetMetadata(reqCtx *fasthttp.RequestCtx) {
 
 	// Copy synchronously so it can be serialized to JSON.
 	a.extendedMetadata.Range(func(key, value interface{}) bool {
-		temp[key.(string)] = key.(string)
+		temp[key.(string)] = value.(string)
 
 		return true
 	})
-
+	temp[daprRuntimeVersionKey] = a.daprRunTimeVersion
 	activeActorsCount := []actors.ActiveActorsCount{}
 	if a.actor != nil {
 		activeActorsCount = a.actor.GetActiveActorsCount(reqCtx)
