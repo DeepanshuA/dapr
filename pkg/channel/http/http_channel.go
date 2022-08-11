@@ -139,6 +139,31 @@ func (h *Channel) GetAppConfig() (*config.ApplicationConfig, error) {
 }
 
 // InvokeMethod invokes user code via HTTP.
+func (h *Channel) InvokeBulkMethod(ctx context.Context, req *invokev1.InvokeMethodRequests) (*invokev1.InvokeMethodResponse, error) {
+	// Check if HTTP Extension is given. Otherwise, it will return error.
+	httpExt := req.Message().GetHttpExtension()
+	if httpExt == nil {
+		return nil, status.Error(codes.InvalidArgument, "missing HTTP extension field")
+	}
+	if httpExt.GetVerb() == commonv1pb.HTTPExtension_NONE {
+		return nil, status.Error(codes.InvalidArgument, "invalid HTTP verb")
+	}
+
+	var rsp *invokev1.InvokeMethodResponse
+	var err error
+	switch req.APIVersion() {
+	case internalv1pb.APIVersion_V1:
+		rsp, err = h.invokeBulkMethodV1(ctx, req)
+
+	default:
+		// Reject unsupported version
+		err = status.Error(codes.Unimplemented, fmt.Sprintf("Unsupported spec version: %d", req.APIVersion()))
+	}
+
+	return rsp, err
+}
+
+// InvokeMethod invokes user code via HTTP.
 func (h *Channel) InvokeMethod(ctx context.Context, req *invokev1.InvokeMethodRequest) (*invokev1.InvokeMethodResponse, error) {
 	// Check if HTTP Extension is given. Otherwise, it will return error.
 	httpExt := req.Message().GetHttpExtension()
@@ -161,6 +186,44 @@ func (h *Channel) InvokeMethod(ctx context.Context, req *invokev1.InvokeMethodRe
 	}
 
 	return rsp, err
+}
+
+func (h *Channel) invokeBulkMethodV1(ctx context.Context, req *invokev1.InvokeMethodRequests) (*invokev1.InvokeMethodResponse, error) {
+	channelReq := h.constructRequests(ctx, req)
+
+	if h.ch != nil {
+		h.ch <- 1
+	}
+
+	// Emit metric when request is sent
+	verb := string(channelReq.Header.Method())
+	diag.DefaultHTTPMonitoring.ClientRequestStarted(ctx, verb, req.Message().Method, int64(len(req.Message().Data)))
+	startRequest := time.Now()
+
+	// Send request to user application
+	resp := fasthttp.AcquireResponse()
+
+	err := h.client.Do(channelReq, resp)
+	defer func() {
+		fasthttp.ReleaseRequest(channelReq)
+		fasthttp.ReleaseResponse(resp)
+	}()
+
+	elapsedMs := float64(time.Since(startRequest) / time.Millisecond)
+
+	if err != nil {
+		diag.DefaultHTTPMonitoring.ClientRequestCompleted(ctx, verb, req.Message().GetMethod(), strconv.Itoa(nethttp.StatusInternalServerError), int64(resp.Header.ContentLength()), elapsedMs)
+		return nil, err
+	}
+
+	if h.ch != nil {
+		<-h.ch
+	}
+
+	rsp := h.parseChannelResponses(req, resp)
+	diag.DefaultHTTPMonitoring.ClientRequestCompleted(ctx, verb, req.Message().GetMethod(), strconv.Itoa(int(rsp.Status().Code)), int64(resp.Header.ContentLength()), elapsedMs)
+
+	return rsp, nil
 }
 
 func (h *Channel) invokeMethodV1(ctx context.Context, req *invokev1.InvokeMethodRequest) (*invokev1.InvokeMethodResponse, error) {
@@ -199,6 +262,46 @@ func (h *Channel) invokeMethodV1(ctx context.Context, req *invokev1.InvokeMethod
 	diag.DefaultHTTPMonitoring.ClientRequestCompleted(ctx, verb, req.Message().GetMethod(), strconv.Itoa(int(rsp.Status().Code)), int64(resp.Header.ContentLength()), elapsedMs)
 
 	return rsp, nil
+}
+
+func (h *Channel) constructRequests(ctx context.Context, req *invokev1.InvokeMethodRequests) *fasthttp.Request {
+	channelReq := fasthttp.AcquireRequest()
+
+	// Construct app channel URI: VERB http://localhost:3000/method?query1=value1
+	var uri string
+	method := req.Message().GetMethod()
+	if strings.HasPrefix(method, "/") {
+		uri = fmt.Sprintf("%s%s", h.baseAddress, method)
+	} else {
+		uri = fmt.Sprintf("%s/%s", h.baseAddress, method)
+	}
+	channelReq.URI().Update(uri)
+	channelReq.URI().DisablePathNormalizing = true
+	channelReq.URI().SetQueryString(req.EncodeHTTPQueryString())
+	channelReq.Header.SetMethod(req.Message().HttpExtension.Verb.String())
+
+	// Recover headers
+	invokev1.InternalMetadataToHTTPHeader(ctx, req.Metadata(), channelReq.Header.Set)
+
+	// HTTP client needs to inject traceparent header for proper tracing stack.
+	span := diag_utils.SpanFromContext(ctx)
+	httpFormat := &tracecontext.HTTPFormat{}
+	tp, ts := httpFormat.SpanContextToHeaders(span.SpanContext())
+	channelReq.Header.Set("traceparent", tp)
+	if ts != "" {
+		channelReq.Header.Set("tracestate", ts)
+	}
+
+	if h.appHeaderToken != "" {
+		channelReq.Header.Set(auth.APITokenHeader, h.appHeaderToken)
+	}
+
+	// Set Content body and types
+	contentType, _ := req.RawData()
+	channelReq.Header.SetContentType(contentType)
+	// channelReq.SetBody(body)
+
+	return channelReq
 }
 
 func (h *Channel) constructRequest(ctx context.Context, req *invokev1.InvokeMethodRequest) *fasthttp.Request {
@@ -242,6 +345,27 @@ func (h *Channel) constructRequest(ctx context.Context, req *invokev1.InvokeMeth
 }
 
 func (h *Channel) parseChannelResponse(req *invokev1.InvokeMethodRequest, resp *fasthttp.Response) *invokev1.InvokeMethodResponse {
+	var statusCode int
+	var contentType string
+	var body []byte
+
+	statusCode = resp.StatusCode()
+
+	// TODO: Remove entire block when feature is finalized
+	if config.GetNoDefaultContentType() {
+		resp.Header.SetNoDefaultContentType(true)
+	}
+	contentType = (string)(resp.Header.ContentType())
+	body = resp.Body()
+
+	// Convert status code
+	rsp := invokev1.NewInvokeMethodResponse(int32(statusCode), "", nil)
+	rsp.WithFastHTTPHeaders(&resp.Header).WithRawData(body, contentType)
+
+	return rsp
+}
+
+func (h *Channel) parseChannelResponses(req *invokev1.InvokeMethodRequests, resp *fasthttp.Response) *invokev1.InvokeMethodResponse {
 	var statusCode int
 	var contentType string
 	var body []byte

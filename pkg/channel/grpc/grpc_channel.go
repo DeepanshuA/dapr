@@ -85,6 +85,23 @@ func (g *Channel) InvokeMethod(ctx context.Context, req *invokev1.InvokeMethodRe
 	return rsp, err
 }
 
+func (g *Channel) InvokeBulkMethod(ctx context.Context, req *invokev1.InvokeMethodRequests) (*invokev1.InvokeMethodResponse, error) {
+	var rsp *invokev1.InvokeMethodResponse
+	var err error
+
+	// switch req.APIVersion() {
+	// case internalv1pb.APIVersion_V1:
+	// 	rsp, err = g.invokeMethodV1(ctx, req)
+
+	// default:
+	// 	// Reject unsupported version
+	// 	rsp = nil
+	// 	err = status.Error(codes.Unimplemented, fmt.Sprintf("Unsupported spec version: %d", req.APIVersion()))
+	// }
+
+	return rsp, err
+}
+
 // invokeMethodV1 calls user applications using daprclient v1.
 func (g *Channel) invokeMethodV1(ctx context.Context, req *invokev1.InvokeMethodRequest) (*invokev1.InvokeMethodResponse, error) {
 	if g.ch != nil {

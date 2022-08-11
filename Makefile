@@ -373,7 +373,7 @@ check-proto-version: ## Checking the version of proto related tools
 	@test "$(shell protoc-gen-go-grpc --version)" = "protoc-gen-go-grpc 1.2.0" \
 	|| { echo "please use protoc-gen-go-grpc 1.2.0 to generate proto, see https://github.com/dapr/dapr/blob/master/dapr/README.md#proto-client-generation"; exit 1; }
 
-	@test "$(shell protoc-gen-go --version 2>&1)" = "$(PROTOC_GEN_GO_NAME)" \
+	@test "$(shell protoc-gen-go --version 2>&1)" = "protoc-gen-go v1.28.1" \
 	|| { echo "please use protoc-gen-go v1.28.0 to generate proto, see https://github.com/dapr/dapr/blob/master/dapr/README.md#proto-client-generation"; exit 1; }
 
 ################################################################################

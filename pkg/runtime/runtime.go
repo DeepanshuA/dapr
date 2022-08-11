@@ -229,6 +229,28 @@ type pubsubSubscribedMessage struct {
 	pubsub     string
 }
 
+type pubsubBulkSubscribedMessageSingular struct {
+	cloudEvents []map[string]interface{}
+	data        []byte
+	topic       string
+	metadata    map[string]string
+	path        string
+	pubsub      string
+}
+
+type subscribedMessageEvent struct {
+	cloudEvent map[string]interface{}
+	data       []byte
+	topic      string
+	path       string
+}
+
+type pubsubBulkSubscribedMessage struct {
+	messages []subscribedMessageEvent
+	metadata map[string]string
+	pubsub   string
+}
+
 // NewDaprRuntime returns a new runtime with the given runtime config and global config.
 func NewDaprRuntime(runtimeConfig *Config, globalConfig *config.Configuration, accessControlList *config.AccessControlList, resiliencyProvider resiliency.Provider) *DaprRuntime {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -545,6 +567,26 @@ func (a *DaprRuntime) initBinding(c components_v1alpha1.Component) error {
 	return nil
 }
 
+func (a *DaprRuntime) sendBulkToDeadLetterIfConfigured(name string, msg *pubsub.NewBulkMessage) (isDeadLetterConfigured bool, err error) {
+	deadLetterTopic, ok := a.deadLetterTopics[fmt.Sprintf(deadLetterKeyFormat, name, msg.Topic)]
+	if !ok {
+		return false, nil
+	}
+	req := &pubsub.BatchPublishRequest{
+		Data:        msg.Data,
+		PubsubName:  name,
+		Topic:       deadLetterTopic,
+		Metadata:    msg.Metadata,
+		ContentType: msg.ContentType,
+	}
+
+	err = a.BatchPublish(req)
+	if err != nil {
+		log.Errorf("error sending message to dead letter, origin topic: %s dead letter topic %s err: %w", msg.Topic, deadLetterTopic, err)
+	}
+	return true, err
+}
+
 func (a *DaprRuntime) sendToDeadLetterIfConfigured(name string, msg *pubsub.NewMessage) (isDeadLetterConfigured bool, err error) {
 	deadLetterTopic, ok := a.deadLetterTopics[fmt.Sprintf(deadLetterKeyFormat, name, msg.Topic)]
 	if !ok {
@@ -563,6 +605,23 @@ func (a *DaprRuntime) sendToDeadLetterIfConfigured(name string, msg *pubsub.NewM
 		log.Errorf("error sending message to dead letter, origin topic: %s dead letter topic %s err: %w", msg.Topic, deadLetterTopic, err)
 	}
 	return true, err
+}
+
+type BulkData struct {
+	Events [][]byte `json:"events"`
+}
+
+type PubSubEvent struct {
+	ID              string `json:"id,omitempty"`
+	Data            []byte `json:"data"`
+	Topic           string `json:"topic"`
+	Pubsubname      string `json:"pubsubname"`
+	DataContentType string `json:"datacontenttype"`
+	TraceID         string `json:"traceid"`
+	TraceState      string `json:"tracestate"`
+	Source          string `json:"source"`
+	Specversion     string `json:"specversion"`
+	TraceParent     string `json:"traceparent"`
 }
 
 func (a *DaprRuntime) beginPubSub(subscribeCtx context.Context, name string, ps pubsub.PubSub) error {
@@ -592,36 +651,25 @@ func (a *DaprRuntime) beginPubSub(subscribeCtx context.Context, name string, ps 
 
 		routeMetadata := route.metadata
 		routeRules := route.rules
-		if err := ps.Subscribe(subscribeCtx, pubsub.SubscribeRequest{
-			Topic:    topic,
-			Metadata: route.metadata,
-		}, func(ctx context.Context, msg *pubsub.NewMessage) error {
-			if msg.Metadata == nil {
-				msg.Metadata = make(map[string]string, 1)
-			}
-
-			msg.Metadata[pubsubName] = name
-
-			rawPayload, err := contrib_metadata.IsRawPayload(routeMetadata)
-			if err != nil {
-				log.Errorf("error deserializing pubsub metadata: %s", err)
-				if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
-					// dlq has been configured and message is successfully sent to dlq.
-					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
-					return nil
+		if routeMetadata["bulkSubscribe"] == "true" {
+			var publishBulkFunc func(ctx context.Context, msg *pubsubBulkSubscribedMessageSingular) error
+			publishBulkFunc = a.publishBulkMessageHTTP
+			if err := ps.BulkSubscribe(subscribeCtx, pubsub.SubscribeRequest{
+				Topic:    topic,
+				Metadata: route.metadata,
+			}, func(ctx context.Context, msg *pubsub.NewBulkMessage) error {
+				// var publishBulkFunc func(ctx context.Context, msg *pubsubBulkSubscribedMessageSingular) error
+				// publishBulkFunc = a.publishBulkMessageHTTP
+				if msg.Metadata == nil {
+					msg.Metadata = make(map[string]string, 1)
 				}
-				diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
-				return err
-			}
 
-			var cloudEvent map[string]interface{}
-			data := msg.Data
-			if rawPayload {
-				cloudEvent = pubsub.FromRawPayload(msg.Data, msg.Topic, name)
-				data, err = json.Marshal(cloudEvent)
+				msg.Metadata[pubsubName] = name
+
+				rawPayload, err := contrib_metadata.IsRawPayload(routeMetadata)
 				if err != nil {
-					log.Errorf("error serializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
-					if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+					log.Errorf("error deserializing pubsub metadata: %s", err)
+					if configured, dlqErr := a.sendBulkToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
 						// dlq has been configured and message is successfully sent to dlq.
 						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
 						return nil
@@ -629,11 +677,71 @@ func (a *DaprRuntime) beginPubSub(subscribeCtx context.Context, name string, ps 
 					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
 					return err
 				}
-			} else {
-				err = json.Unmarshal(msg.Data, &cloudEvent)
+
+				var cloudEvents = make([]map[string]interface{}, 0)
+
+				// data := msg.Data
+				if rawPayload {
+					// cloudEvent = pubsub.FromRawPayload(msg.Data, msg.Topic, name)
+					// data, err = json.Marshal(cloudEvent)
+					// if err != nil {
+					// 	log.Errorf("error serializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
+					// 	if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+					// 		// dlq has been configured and message is successfully sent to dlq.
+					// 		diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+					// 		return nil
+					// 	}
+					// 	diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
+					// 	return err
+					// }
+				} else {
+					for i, data := range msg.Data {
+						var cloudEvent map[string]interface{}
+						err = json.Unmarshal(data, &cloudEvent)
+						// localCE := PubSubEvent{
+						// 	ID:              cloudEvent[pubsub.IDField],
+						// 	Data:            cloudEvent[pubsub.DataField],
+						// 	DataContentType: cloudEvent[pubsub.DataContentTypeField],
+						// 	TraceID:         cloudEvent[pubsub.TraceIDField],
+						// 	TraceState:      cloudEvent[pubsub.TraceStateField],
+						// 	TraceParent:     cloudEvent[pubsub.TraceParentField],
+						// 	Topic:           cloudEvent[pubsub.TopicField],
+						// 	Pubsubname:      cloudEvent["pubsubname"],
+						// 	Source:          cloudEvent[pubsub.SourceField],
+						// }
+						cloudEvents = append(cloudEvents, cloudEvent)
+						if err != nil {
+							log.Errorf("error deserializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
+							if configured, dlqErr := a.sendToDeadLetterIfConfigured(name,
+								&pubsub.NewMessage{
+									Data:        msg.Data[i],
+									Topic:       msg.Topic,
+									Metadata:    msg.Metadata,
+									ContentType: msg.ContentType,
+								}); configured && dlqErr == nil {
+								// dlq has been configured and message is successfully sent to dlq.
+								diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+								return nil
+							}
+							diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
+							return err
+						}
+					}
+
+				}
+
+				if pubsub.HasExpired(cloudEvents[0]) {
+					log.Warnf("dropping expired pub/sub event %v as of %v", cloudEvents[0][pubsub.IDField], cloudEvents[0][pubsub.ExpirationField])
+					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+
+					a.sendBulkToDeadLetterIfConfigured(name, msg)
+					return nil
+				}
+
+				routePath, shouldProcess, err := findMatchingRoute(routeRules, cloudEvents[0])
 				if err != nil {
-					log.Errorf("error deserializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
-					if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+					log.Errorf("error finding matching route for event %v in pubsub %s and topic %s: %s", cloudEvents[0][pubsub.IDField], name, msg.Topic, err)
+					if configured, dlqErr := a.sendBulkToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
 						// dlq has been configured and message is successfully sent to dlq.
 						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
 						return nil
@@ -641,58 +749,143 @@ func (a *DaprRuntime) beginPubSub(subscribeCtx context.Context, name string, ps 
 					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
 					return err
 				}
-			}
-
-			if pubsub.HasExpired(cloudEvent) {
-				log.Warnf("dropping expired pub/sub event %v as of %v", cloudEvent[pubsub.IDField], cloudEvent[pubsub.ExpirationField])
-				diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
-
-				a.sendToDeadLetterIfConfigured(name, msg)
-				return nil
-			}
-
-			routePath, shouldProcess, err := findMatchingRoute(routeRules, cloudEvent)
-			if err != nil {
-				log.Errorf("error finding matching route for event %v in pubsub %s and topic %s: %s", cloudEvent[pubsub.IDField], name, msg.Topic, err)
-				if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
-					// dlq has been configured and message is successfully sent to dlq.
+				if !shouldProcess {
+					// The event does not match any route specified so ignore it.
+					log.Debugf("no matching route for event %v in pubsub %s and topic %s; skipping", cloudEvents[0][pubsub.IDField], name, msg.Topic)
 					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+					a.sendBulkToDeadLetterIfConfigured(name, msg)
 					return nil
 				}
-				diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
-				return err
-			}
-			if !shouldProcess {
-				// The event does not match any route specified so ignore it.
-				log.Debugf("no matching route for event %v in pubsub %s and topic %s; skipping", cloudEvent[pubsub.IDField], name, msg.Topic)
-				diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
-				a.sendToDeadLetterIfConfigured(name, msg)
-				return nil
-			}
 
-			policy := a.resiliency.ComponentInboundPolicy(ctx, name)
-			err = policy(func(ctx context.Context) error {
-				return publishFunc(ctx, &pubsubSubscribedMessage{
-					cloudEvent: cloudEvent,
-					data:       data,
-					topic:      msg.Topic,
-					metadata:   msg.Metadata,
-					path:       routePath,
-					pubsub:     name,
+				da, err := json.Marshal(BulkData{Events: msg.Data})
+
+				policy := a.resiliency.ComponentInboundPolicy(ctx, name)
+				err = policy(func(ctx context.Context) error {
+					return publishBulkFunc(ctx, &pubsubBulkSubscribedMessageSingular{
+						cloudEvents: cloudEvents,
+						data:        da,
+						topic:       msg.Topic,
+						metadata:    msg.Metadata,
+						path:        routePath,
+						pubsub:      name,
+					})
 				})
-			})
-			if err != nil && err != context.Canceled {
-				// Sending msg to dead letter queue, if no DLQ is configured, return error for backwards compatibility(component level retry).
-				if configured, _ := a.sendToDeadLetterIfConfigured(name, msg); !configured {
+				if err != nil && err != context.Canceled {
+					// Sending msg to dead letter queue, if no DLQ is configured, return error for backwards compatibility(component level retry).
+					if configured, _ := a.sendBulkToDeadLetterIfConfigured(name, msg); !configured {
+						return err
+					}
+
+					return nil
+				}
+				return err
+			}); err != nil {
+				log.Errorf("failed to bulk subscribe to topic %s: %s", topic, err)
+			}
+		} else {
+			if err := ps.Subscribe(subscribeCtx, pubsub.SubscribeRequest{
+				Topic:    topic,
+				Metadata: route.metadata,
+			}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+				if msg.Metadata == nil {
+					msg.Metadata = make(map[string]string, 1)
+				}
+
+				msg.Metadata[pubsubName] = name
+
+				rawPayload, err := contrib_metadata.IsRawPayload(routeMetadata)
+				if err != nil {
+					log.Errorf("error deserializing pubsub metadata: %s", err)
+					if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+						// dlq has been configured and message is successfully sent to dlq.
+						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+						return nil
+					}
+					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
 					return err
 				}
 
-				return nil
+				var cloudEvent map[string]interface{}
+				data := msg.Data
+				if rawPayload {
+					cloudEvent = pubsub.FromRawPayload(msg.Data, msg.Topic, name)
+					data, err = json.Marshal(cloudEvent)
+					if err != nil {
+						log.Errorf("error serializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
+						if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+							// dlq has been configured and message is successfully sent to dlq.
+							diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+							return nil
+						}
+						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
+						return err
+					}
+				} else {
+					err = json.Unmarshal(msg.Data, &cloudEvent)
+					if err != nil {
+						log.Errorf("error deserializing cloud event in pubsub %s and topic %s: %s", name, msg.Topic, err)
+						if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+							// dlq has been configured and message is successfully sent to dlq.
+							diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+							return nil
+						}
+						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
+						return err
+					}
+				}
+
+				if pubsub.HasExpired(cloudEvent) {
+					log.Warnf("dropping expired pub/sub event %v as of %v", cloudEvent[pubsub.IDField], cloudEvent[pubsub.ExpirationField])
+					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+
+					a.sendToDeadLetterIfConfigured(name, msg)
+					return nil
+				}
+
+				routePath, shouldProcess, err := findMatchingRoute(routeRules, cloudEvent)
+				if err != nil {
+					log.Errorf("error finding matching route for event %v in pubsub %s and topic %s: %s", cloudEvent[pubsub.IDField], name, msg.Topic, err)
+					if configured, dlqErr := a.sendToDeadLetterIfConfigured(name, msg); configured && dlqErr == nil {
+						// dlq has been configured and message is successfully sent to dlq.
+						diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+						return nil
+					}
+					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Retry)), msg.Topic, 0)
+					return err
+				}
+				if !shouldProcess {
+					// The event does not match any route specified so ignore it.
+					log.Debugf("no matching route for event %v in pubsub %s and topic %s; skipping", cloudEvent[pubsub.IDField], name, msg.Topic)
+					diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, pubsubName, strings.ToLower(string(pubsub.Drop)), msg.Topic, 0)
+					a.sendToDeadLetterIfConfigured(name, msg)
+					return nil
+				}
+
+				policy := a.resiliency.ComponentInboundPolicy(ctx, name)
+				err = policy(func(ctx context.Context) error {
+					return publishFunc(ctx, &pubsubSubscribedMessage{
+						cloudEvent: cloudEvent,
+						data:       data,
+						topic:      msg.Topic,
+						metadata:   msg.Metadata,
+						path:       routePath,
+						pubsub:     name,
+					})
+				})
+				if err != nil && err != context.Canceled {
+					// Sending msg to dead letter queue, if no DLQ is configured, return error for backwards compatibility(component level retry).
+					if configured, _ := a.sendToDeadLetterIfConfigured(name, msg); !configured {
+						return err
+					}
+
+					return nil
+				}
+				return err
+			}); err != nil {
+				log.Errorf("failed to subscribe to topic %s: %s", topic, err)
 			}
-			return err
-		}); err != nil {
-			log.Errorf("failed to subscribe to topic %s: %s", topic, err)
 		}
+
 	}
 
 	return nil
@@ -1765,6 +1958,90 @@ func (a *DaprRuntime) publishMessageHTTP(ctx context.Context, msg *pubsubSubscri
 	log.Warnf("retriable error returned from app while processing pub/sub event %v, topic: %v, body: %s. status code returned: %v", cloudEvent[pubsub.IDField], cloudEvent[pubsub.TopicField], body, statusCode)
 	diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Retry)), msg.topic, elapsed)
 	return errors.Errorf("retriable error returned from app while processing pub/sub event %v, topic: %v, body: %s. status code returned: %v", cloudEvent[pubsub.IDField], cloudEvent[pubsub.TopicField], body, statusCode)
+}
+
+func (a *DaprRuntime) publishBulkMessageHTTP(ctx context.Context, msg *pubsubBulkSubscribedMessageSingular) error {
+	cloudEvents := msg.cloudEvents
+
+	var span *trace.Span
+
+	req := invokev1.NewInvokeMethodRequest(msg.path)
+	req.WithHTTPExtension(nethttp.MethodPost, "")
+	req.WithRawData(msg.data, contenttype.CloudEventContentType)
+	req.WithCustomHTTPMetadata(msg.metadata)
+
+	for _, cloudEvent := range msg.cloudEvents {
+		if cloudEvent[pubsub.TraceIDField] != nil {
+			traceID := cloudEvent[pubsub.TraceIDField].(string)
+			sc, _ := diag.SpanContextFromW3CString(traceID)
+			spanName := fmt.Sprintf("pubsub/%s", msg.topic)
+			ctx, span = diag.StartInternalCallbackSpan(ctx, spanName, sc, a.globalConfig.Spec.TracingSpec)
+		}
+	}
+
+	start := time.Now()
+	resp, err := a.appChannel.InvokeMethod(ctx, req)
+	elapsed := diag.ElapsedSince(start)
+
+	if err != nil {
+		diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Retry)), msg.topic, elapsed)
+		return errors.Wrap(err, "error from app channel while sending pub/sub event to app")
+	}
+
+	statusCode := int(resp.Status().Code)
+
+	if span != nil {
+		m := diag.ConstructSubscriptionSpanAttributes(msg.topic)
+		diag.AddAttributesToSpan(span, m)
+		diag.UpdateSpanStatusFromHTTPStatus(span, statusCode)
+		span.End()
+	}
+
+	_, body := resp.RawData()
+
+	if (statusCode >= 200) && (statusCode <= 299) {
+		// Any 2xx is considered a success.
+		var appResponse pubsub.AppResponse
+		err := json.Unmarshal(body, &appResponse)
+		if err != nil {
+			log.Debugf("skipping status check due to error parsing result from pub/sub event %v", cloudEvents[0][pubsub.IDField])
+			diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Success)), msg.topic, elapsed)
+			return nil
+		}
+
+		switch appResponse.Status {
+		case "":
+			// Consider empty status field as success
+			fallthrough
+		case pubsub.Success:
+			diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Success)), msg.topic, elapsed)
+			return nil
+		case pubsub.Retry:
+			diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Retry)), msg.topic, elapsed)
+			return errors.Errorf("RETRY status returned from app while processing pub/sub event %v", cloudEvents[0][pubsub.IDField])
+		case pubsub.Drop:
+			diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Drop)), msg.topic, elapsed)
+			log.Warnf("DROP status returned from app while processing pub/sub event %v", cloudEvents[0][pubsub.IDField])
+			return nil
+		}
+		// Consider unknown status field as error and retry
+		diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Retry)), msg.topic, elapsed)
+		return errors.Errorf("unknown status returned from app while processing pub/sub event %v: %v", cloudEvents[0][pubsub.IDField], appResponse.Status)
+	}
+
+	if statusCode == nethttp.StatusNotFound {
+		// These are errors that are not retriable, for now it is just 404 but more status codes can be added.
+		// When adding/removing an error here, check if that is also applicable to GRPC since there is a mapping between HTTP and GRPC errors:
+		// https://cloud.google.com/apis/design/errors#handling_errors
+		log.Errorf("non-retriable error returned from app while processing pub/sub event %v: %s. status code returned: %v", cloudEvents[0][pubsub.IDField], body, statusCode)
+		diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Drop)), msg.topic, elapsed)
+		return nil
+	}
+
+	// Every error from now on is a retriable error.
+	log.Warnf("retriable error returned from app while processing pub/sub event %v, topic: %v, body: %s. status code returned: %v", cloudEvents[0][pubsub.IDField], cloudEvents[0][pubsub.TopicField], body, statusCode)
+	diag.DefaultComponentMonitoring.PubsubIngressEvent(ctx, msg.pubsub, strings.ToLower(string(pubsub.Retry)), msg.topic, elapsed)
+	return errors.Errorf("retriable error returned from app while processing pub/sub event %v, topic: %v, body: %s. status code returned: %v", cloudEvents[0][pubsub.IDField], cloudEvents[0][pubsub.TopicField], body, statusCode)
 }
 
 func (a *DaprRuntime) publishMessageGRPC(ctx context.Context, msg *pubsubSubscribedMessage) error {

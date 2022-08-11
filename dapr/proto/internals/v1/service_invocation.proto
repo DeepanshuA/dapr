@@ -65,6 +65,22 @@ message InternalInvokeRequest {
   Actor actor = 4;
 }
 
+message InternalInvokeRequests {
+  // Required. The version of Dapr runtime API.
+  APIVersion ver = 1;
+
+  // Required. metadata holds caller's HTTP headers or gRPC metadata.
+  map<string, ListStringValue> metadata = 2;
+
+  // Required. message including caller's invocation request.
+  common.v1.InvokeRequests message = 3;
+
+  // Actor type and id. This field is used only for
+  // actor service invocation.
+  Actor actor = 4;
+}
+
+
 // InternalInvokeResponse is the message to transfer callee's response to caller
 // for service invocation.
 message InternalInvokeResponse {

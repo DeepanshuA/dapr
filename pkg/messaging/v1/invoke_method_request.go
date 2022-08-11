@@ -30,6 +30,21 @@ const (
 	DefaultAPIVersion = internalv1pb.APIVersion_V1
 )
 
+type InvokeMethodRequests struct {
+	r *internalv1pb.InternalInvokeRequests
+}
+
+func NewInvokeMethodRequests(method string) *InvokeMethodRequests {
+	return &InvokeMethodRequests{
+		r: &internalv1pb.InternalInvokeRequests{
+			Ver: DefaultAPIVersion,
+			Message: &commonv1pb.InvokeRequests{
+				Method: method,
+			},
+		},
+	}
+}
+
 // InvokeMethodRequest holds InternalInvokeRequest protobuf message
 // and provides the helpers to manage it.
 type InvokeMethodRequest struct {
@@ -101,8 +116,49 @@ func (imr *InvokeMethodRequest) WithRawData(data []byte, contentType string) *In
 	return imr
 }
 
+// WithRawData sets message data and content_type.
+func (imr *InvokeMethodRequests) WithBulkRawData(data [][]byte, contentType string) *InvokeMethodRequests {
+	// TODO: Remove the entire block once feature is finalized
+	if contentType == "" && !config.GetNoDefaultContentType() {
+		contentType = JSONContentType
+	}
+	imr.r.Message.ContentType = contentType
+	imr.r.Message.Data = data
+	return imr
+}
+
 // WithHTTPExtension sets new HTTP extension with verb and querystring.
 func (imr *InvokeMethodRequest) WithHTTPExtension(verb string, querystring string) *InvokeMethodRequest {
+	httpMethod, ok := commonv1pb.HTTPExtension_Verb_value[strings.ToUpper(verb)]
+	if !ok {
+		httpMethod = int32(commonv1pb.HTTPExtension_POST)
+	}
+
+	imr.r.Message.HttpExtension = &commonv1pb.HTTPExtension{
+		Verb:        commonv1pb.HTTPExtension_Verb(httpMethod),
+		Querystring: querystring,
+	}
+
+	return imr
+}
+
+// WithCustomHTTPMetadata applies a metadata map to a InvokeMethodRequest.
+func (imr *InvokeMethodRequests) WithCustomHTTPMetadata(md map[string]string) *InvokeMethodRequests {
+	for k, v := range md {
+		if imr.r.Metadata == nil {
+			imr.r.Metadata = make(map[string]*internalv1pb.ListStringValue)
+		}
+
+		// NOTE: We don't explicitly lowercase the keys here but this will be done
+		//       later when attached to the HTTP request as headers.
+		imr.r.Metadata[k] = &internalv1pb.ListStringValue{Values: []string{v}}
+	}
+
+	return imr
+}
+
+// WithHTTPExtension sets new HTTP extension with verb and querystring.
+func (imr *InvokeMethodRequests) WithHTTPExtension(verb string, querystring string) *InvokeMethodRequests {
 	httpMethod, ok := commonv1pb.HTTPExtension_Verb_value[strings.ToUpper(verb)]
 	if !ok {
 		httpMethod = int32(commonv1pb.HTTPExtension_POST)
@@ -141,13 +197,30 @@ func (imr *InvokeMethodRequest) EncodeHTTPQueryString() string {
 	return m.GetHttpExtension().Querystring
 }
 
+func (imr *InvokeMethodRequests) EncodeHTTPQueryString() string {
+	m := imr.r.Message
+	if m == nil || m.GetHttpExtension() == nil {
+		return ""
+	}
+
+	return m.GetHttpExtension().Querystring
+}
+
 // APIVersion gets API version of InvokeMethodRequest.
 func (imr *InvokeMethodRequest) APIVersion() internalv1pb.APIVersion {
 	return imr.r.GetVer()
 }
 
+func (imr *InvokeMethodRequests) APIVersion() internalv1pb.APIVersion {
+	return imr.r.GetVer()
+}
+
 // Metadata gets Metadata of InvokeMethodRequest.
 func (imr *InvokeMethodRequest) Metadata() DaprInternalMetadata {
+	return imr.r.GetMetadata()
+}
+
+func (imr *InvokeMethodRequests) Metadata() DaprInternalMetadata {
 	return imr.r.GetMetadata()
 }
 
@@ -166,6 +239,10 @@ func (imr *InvokeMethodRequest) Message() *commonv1pb.InvokeRequest {
 	return imr.r.Message
 }
 
+func (imr *InvokeMethodRequests) Message() *commonv1pb.InvokeRequests {
+	return imr.r.Message
+}
+
 // RawData returns content_type and byte array body.
 func (imr *InvokeMethodRequest) RawData() (string, []byte) {
 	m := imr.r.Message
@@ -181,6 +258,27 @@ func (imr *InvokeMethodRequest) RawData() (string, []byte) {
 		dataTypeURL := m.GetData().GetTypeUrl()
 		// set content_type to application/json only if typeurl is unset and data is given
 		if contentType == "" && (dataTypeURL == "" && dataValue != nil) {
+			contentType = JSONContentType
+		}
+	}
+
+	return contentType, dataValue
+}
+
+func (imr *InvokeMethodRequests) RawData() (string, [][]byte) {
+	m := imr.r.Message
+	if m == nil || m.Data == nil {
+		return "", nil
+	}
+
+	contentType := m.GetContentType()
+	dataValue := m.GetData()
+
+	// TODO: Remove once feature is finalized
+	if !config.GetNoDefaultContentType() {
+		// dataTypeURL := m.GetData().GetTypeUrl()
+		// set content_type to application/json only if typeurl is unset and data is given
+		if contentType == "" && (dataValue != nil) {
 			contentType = JSONContentType
 		}
 	}

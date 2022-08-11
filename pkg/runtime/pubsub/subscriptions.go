@@ -52,6 +52,19 @@ type (
 		Routes          RoutesJSON        `json:"routes"` // Multiple routes from v2alpha1
 	}
 
+	BulkSubscriptionJSON struct {
+		PubsubName    string                    `json:"pubsubname"`
+		Metadata      map[string]string         `json:"metadata,omitempty"`
+		Subscriptions []SingleSubscriptionEvent `json:"singleSubscriptionEvent"`
+	}
+
+	SingleSubscriptionEvent struct {
+		Topic           string     `json:"topic"`
+		DeadLetterTopic string     `json:"deadLetterTopic"`
+		Route           string     `json:"route"`  // Single route from v1alpha1
+		Routes          RoutesJSON `json:"routes"` // Multiple routes from v2alpha1
+	}
+
 	RoutesJSON struct {
 		Rules   []*RuleJSON `json:"rules,omitempty"`
 		Default string      `json:"default,omitempty"`

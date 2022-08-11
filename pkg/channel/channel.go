@@ -30,4 +30,5 @@ type AppChannel interface {
 	GetBaseAddress() string
 	GetAppConfig() (*config.ApplicationConfig, error)
 	InvokeMethod(ctx context.Context, req *invokev1.InvokeMethodRequest) (*invokev1.InvokeMethodResponse, error)
+	InvokeBulkMethod(ctx context.Context, req *invokev1.InvokeMethodRequests) (*invokev1.InvokeMethodResponse, error)
 }

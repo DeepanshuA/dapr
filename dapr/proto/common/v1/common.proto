@@ -77,6 +77,28 @@ message InvokeRequest {
   HTTPExtension http_extension = 4;
 }
 
+message InvokeRequests {
+  // Required. method is a method name which will be invoked by caller.
+  string method = 1;
+
+  // Required. Bytes value or Protobuf message which caller sent.
+  // Dapr treats Any.value as bytes type if Any.type_url is unset.
+  repeated bytes data = 2;
+
+  // The type of data content.
+  //
+  // This field is required if data delivers http request body
+  // Otherwise, this is optional.
+  string content_type = 3;
+
+  // HTTP specific fields if request conveys http-compatible request.
+  //
+  // This field is required for http-compatible request. Otherwise,
+  // this field is optional.
+  HTTPExtension http_extension = 4;
+}
+
+
 // InvokeResponse is the response message inclduing data and its content type
 // from app callback.
 // This message is used in InvokeService of Dapr gRPC Service and OnInvoke
