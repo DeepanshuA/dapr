@@ -42,7 +42,7 @@ type BatchSubscribeCloudEvent struct {
 }
 
 func NewBatchSubscribeCloudEvent(req *BatchSubscribeCloudEvent) (map[string]interface{}, error) {
-	return contribPubsub.NewBatchCloudEventsEnvelope(uuid.New().String(), req.ID, contribPubsub.DefaultCloudEventType,
+	return contribPubsub.NewBatchCloudEventsEnvelope(uuid.New().String(), req.ID, contribPubsub.DefaultBatchCloudEventType,
 		"", req.Topic, req.Pubsub, req.DataContentType, req.Data, req.TraceID, req.TraceState), nil
 }
 

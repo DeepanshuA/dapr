@@ -36,6 +36,9 @@ service AppCallback {
   // Subscribes events from Pubsub
   rpc OnTopicEvent(TopicEventRequest) returns (TopicEventResponse) {}
 
+  // Subscribes events from Pubsub
+  rpc OnBatchTopicEvent(TopicEventRequest) returns (TopicEventBatchResponse) {}
+
   // Lists all input bindings subscribed by this app.
   rpc ListInputBindings(google.protobuf.Empty) returns (ListInputBindingsResponse) {}
 
@@ -105,6 +108,24 @@ message TopicEventResponse {
 
   // The list of output bindings.
   TopicEventResponseStatus status = 1;
+}
+
+// TopicEventResponse is response from app on published message
+message TopicEventResponsePerId {
+  
+  string id = 1;
+
+  string index = 2;
+
+  // The list of output bindings.
+  TopicEventResponse.TopicEventResponseStatus status = 3;
+}
+
+// TopicEventResponse is response from app on published message
+message TopicEventBatchResponse {
+
+  // The list of output bindings.
+  repeated TopicEventResponsePerId statuses = 1;
 }
 
 // BindingEventRequest represents input bindings event.
