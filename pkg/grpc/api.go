@@ -733,13 +733,13 @@ func (a *api) GetAllComponentsHealthAlpha1(ctx context.Context, in *runtimev1pb.
 		Results: make([]*runtimev1pb.ComponentHealthResponseItem, len(components)),
 	}
 	for _, comp := range components {
-		a.allComponentsHealthResponePopulator(strings.Split(comp.Spec.Type, ".")[0], hresp, i, comp.Name)
+		a.allComponentsHealthResponsePopulator(strings.Split(comp.Spec.Type, ".")[0], hresp, i, comp.Name)
 		i++
 	}
 	return hresp, nil
 }
 
-func (a *api) allComponentsHealthResponePopulator(componentType string, hresp *runtimev1pb.AllComponentsHealthResponse, ind int, name string) {
+func (a *api) allComponentsHealthResponsePopulator(componentType string, hresp *runtimev1pb.AllComponentsHealthResponse, ind int, name string) {
 	status, errStr, message, _ := a.CheckHealthUtil(componentType, name)
 
 	hresp.Results[ind] = &runtimev1pb.ComponentHealthResponseItem{
@@ -749,9 +749,6 @@ func (a *api) allComponentsHealthResponePopulator(componentType string, hresp *r
 		ErrorCode:     errStr,
 		Message:       message,
 	}
-	// if errStr != nil {
-	// 	hresp.Results[ind].ErrorCode = errStr
-	// }
 }
 
 func (a *api) GetComponentHealthAlpha1(ctx context.Context, in *runtimev1pb.ComponentHealthRequest) (*runtimev1pb.ComponentHealthResponse, error) {
@@ -1598,10 +1595,10 @@ func (a *api) SetActorRuntime(actor actors.Actors) {
 func (a *api) GetMetadata(ctx context.Context, in *emptypb.Empty) (*runtimev1pb.GetMetadataResponse, error) {
 	extendedMetadata := make(map[string]string)
 	// Copy synchronously so it can be serialized to JSON.
-	a.extendedMetadata.Range(func(key, value interface{}) bool {
-		extendedMetadata[key.(string)] = value.(string)
-		return true
-	})
+	// a.extendedMetadata.Range(func(key, value interface{}) bool {
+	// 	extendedMetadata[key.(string)] = value.(string)
+	// 	return true
+	// })
 	extendedMetadata[daprRuntimeVersionKey] = a.daprRunTimeVersion
 
 	activeActorsCount := []*runtimev1pb.ActiveActorsCount{}
