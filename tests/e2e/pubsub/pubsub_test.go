@@ -234,6 +234,9 @@ func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, prot
 	// require.NoError(t, err)
 	// offset += numberOfMessagesToPublish + 1
 
+	sentTopicBulkSubMessages = make([]string, 0)
+	sentTopicRawBulkSubMessages = make([]string, 0)
+
 	return receivedMessagesResponse{
 		ReceivedByTopicBulkSub:    sentTopicBulkSubMessages,
 		ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages,
