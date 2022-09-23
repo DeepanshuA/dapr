@@ -235,9 +235,9 @@ func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, prot
 	// offset += numberOfMessagesToPublish + 1
 
 	return receivedMessagesResponse{
-		ReceivedByTopicBulkSub:    sentTopicBulkSubMessages
-		ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages
-		ReceivedByTopicCEBulkSub:  sentTopicCEBulkSubMessages
+		ReceivedByTopicBulkSub:    sentTopicBulkSubMessages,
+		ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages,
+		ReceivedByTopicCEBulkSub:  sentTopicCEBulkSubMessages,
 	}
 }
 
@@ -609,8 +609,8 @@ var pubsubTests = []struct {
 		subscriberResponse: "invalid-status",
 	},
 	{
-		name:               "publish and bulk subscribe messages successfully",
-		handler:            testPublishBulkSubscribeSuccessfully,
+		name:    "publish and bulk subscribe messages successfully",
+		handler: testPublishBulkSubscribeSuccessfully,
 	},
 }
 
