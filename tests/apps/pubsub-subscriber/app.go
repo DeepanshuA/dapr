@@ -41,12 +41,15 @@ const (
 	pubsubRaw             = "pubsub-raw-topic-http"
 	pubsubDead            = "pubsub-dead-topic-http"
 	pubsubDeadLetter      = "pubsub-deadletter-topic-http"
+	pubsubRawSubTopic     = "pubsub-raw-sub-topic-http"
+	pubsubCESubTopic      = "pubsub-ce-sub-topic-http"
 	pubsubRawBulkSubTopic = "pubsub-raw-bulk-sub-topic-http"
 	pubsubCEBulkSubTopic  = "pubsub-ce-bulk-sub-topic-http"
 	PubSubEnvVar          = "DAPR_TEST_PUBSUB_NAME"
 )
 
 var pubsubName = "messagebus"
+var pubsubkafkaName = "kafka-pubsub-comp"
 
 func init() {
 	if psName := os.Getenv(PubSubEnvVar); len(psName) != 0 {
@@ -70,6 +73,8 @@ type receivedMessagesResponse struct {
 	ReceivedByTopicRaw        []string `json:"pubsub-raw-topic"`
 	ReceivedByTopicDead       []string `json:"pubsub-dead-topic"`
 	ReceivedByTopicDeadLetter []string `json:"pubsub-deadletter-topic"`
+	ReceivedByTopicRawSub     []string `json:"pubsub-raw-sub-topic"`
+	ReceivedByTopicCESub      []string `json:"pubsub-ce-sub-topic"`
 	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
 	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
@@ -139,8 +144,6 @@ const (
 	respondWithRetry
 	// respond with invalid status
 	respondWithInvalidStatus
-	// // respond with success for all messages in bulk
-	// respondWithSuccessBulk
 )
 
 var (
@@ -152,6 +155,8 @@ var (
 	receivedMessagesRaw        sets.String
 	receivedMessagesDead       sets.String
 	receivedMessagesDeadLetter sets.String
+	receivedMessagesSubRaw     sets.String
+	receivedMessagesSubCE      sets.String
 	receivedMessagesBulkRaw    sets.String
 	receivedMessagesBulkCE     sets.String
 	desiredResponse            respondWith
@@ -207,7 +212,20 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			Route:      pubsubDeadLetter,
 		},
 		{
-			PubsubName: pubsubName,
+			PubsubName: pubsubkafkaName,
+			Topic:      pubsubRawSubTopic,
+			Route:      pubsubRawSubTopic,
+			Metadata: map[string]string{
+				"rawPayload": "true",
+			},
+		},
+		{
+			PubsubName: pubsubkafkaName,
+			Topic:      pubsubCESubTopic,
+			Route:      pubsubCESubTopic,
+		},
+		{
+			PubsubName: pubsubkafkaName,
 			Topic:      pubsubRawBulkSubTopic,
 			Route:      pubsubRawBulkSubTopic,
 			Metadata: map[string]string{
@@ -216,7 +234,7 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			},
 		},
 		{
-			PubsubName: pubsubName,
+			PubsubName: pubsubkafkaName,
 			Topic:      pubsubCEBulkSubTopic,
 			Route:      pubsubCEBulkSubTopic,
 			Metadata: map[string]string{
@@ -369,6 +387,10 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 		receivedMessagesDead.Insert(msg)
 	} else if strings.HasSuffix(r.URL.String(), pubsubDeadLetter) && !receivedMessagesDeadLetter.Has(msg) {
 		receivedMessagesDeadLetter.Insert(msg)
+	} else if strings.HasSuffix(r.URL.String(), pubsubRawSubTopic) && !receivedMessagesSubRaw.Has(msg) {
+		receivedMessagesSubRaw.Insert(msg)
+	} else if strings.HasSuffix(r.URL.String(), pubsubCESubTopic) && !receivedMessagesSubCE.Has(msg) {
+		receivedMessagesSubCE.Insert(msg)
 	} else {
 		// This case is triggered when there is multiple redelivery of same message or a message
 		// is thre for an unknown URL path
@@ -583,6 +605,8 @@ func getReceivedMessages(w http.ResponseWriter, r *http.Request) {
 		ReceivedByTopicRaw:        unique(receivedMessagesRaw.List()),
 		ReceivedByTopicDead:       unique(receivedMessagesDead.List()),
 		ReceivedByTopicDeadLetter: unique(receivedMessagesDeadLetter.List()),
+		ReceivedByTopicRawSub:     unique(receivedMessagesSubRaw.List()),
+		ReceivedByTopicCESub:      unique(receivedMessagesSubCE.List()),
 		ReceivedByTopicRawBulkSub: unique(receivedMessagesBulkRaw.List()),
 		ReceivedByTopicCEBulkSub:  unique(receivedMessagesBulkCE.List()),
 	}
@@ -622,6 +646,8 @@ func initializeSets() {
 	receivedMessagesRaw = sets.NewString()
 	receivedMessagesDead = sets.NewString()
 	receivedMessagesDeadLetter = sets.NewString()
+	receivedMessagesSubRaw = sets.NewString()
+	receivedMessagesSubCE = sets.NewString()
 	receivedMessagesBulkRaw = sets.NewString()
 	receivedMessagesBulkCE = sets.NewString()
 }
@@ -661,6 +687,8 @@ func appRouter() *mux.Router {
 	router.HandleFunc("/"+pubsubDead, subscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubDeadLetter, subscribeHandler).Methods("POST")
 
+	router.HandleFunc("/"+pubsubRawSubTopic, subscribeHandler).Methods("POST")
+	router.HandleFunc("/"+pubsubCESubTopic, subscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubRawBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubCEBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 

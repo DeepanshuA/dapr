@@ -42,6 +42,7 @@ const (
 )
 
 var pubsubName = "messagebus"
+var pubsubkafkaName = "kafka-pubsub-comp"
 
 func init() {
 	if psName := os.Getenv(PubSubEnvVar); len(psName) != 0 {
@@ -165,7 +166,11 @@ func performPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func performPublishHTTP(reqID string, topic string, jsonValue []byte, contentType string, metadata map[string]string) (int, error) {
-	url := fmt.Sprintf("http://localhost:%d/v1.0/publish/%s/%s", daprPortHTTP, pubsubName, topic)
+	psName := pubsubName
+	if strings.Contains(topic, "sub-topic") {
+		psName = pubsubkafkaName
+	}
+	url := fmt.Sprintf("http://localhost:%d/v1.0/publish/%s/%s", daprPortHTTP, psName, topic)
 	if len(metadata) > 0 {
 		params := netUrl.Values{}
 		for k, v := range metadata {
