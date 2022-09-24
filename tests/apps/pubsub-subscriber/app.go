@@ -591,15 +591,15 @@ func extractBulkMessage(reqID string, body []byte, isRawPayload bool) ([]AppBulk
 
 		// do we need following part - PART S STARTS
 
-		var actualMsg string
-		err = json.Unmarshal([]byte(entryDataStr), &actualMsg)
-		if err != nil {
-			// Log only
-			log.Printf("(%s) Error extracing JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
-		} else {
-			log.Printf("(%s) Output of JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
-			entryDataStr = actualMsg
-		}
+		// var actualMsg string
+		// err = json.Unmarshal([]byte(entryDataStr), &actualMsg)
+		// if err != nil {
+		// 	// Log only
+		// 	log.Printf("(%s) Error extracing JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
+		// } else {
+		// 	log.Printf("(%s) Output of JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, actualMsg)
+		// 	entryDataStr = actualMsg
+		// }
 
 		// PART S ENDS
 
