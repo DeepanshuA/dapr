@@ -429,6 +429,7 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Before we handle the error, see if we need to respond in another way
 	// We still want the message so we can log it
+	lock.Lock()
 	for i, msg := range msgs {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
@@ -445,8 +446,6 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 			entryResponse.Status = "SUCCESS"
 			bulkResponseEntries[i] = entryResponse
 
-			lock.Lock()
-			defer lock.Unlock()
 			if strings.HasSuffix(r.URL.String(), pubsubBulkSubTopic) && !receivedMessagesBulkSub.Has(msg.EventStr) {
 				receivedMessagesBulkSub.Insert(msg.EventStr)
 			} else if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
@@ -485,6 +484,7 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 			// 	return
 		}
 	}
+	defer lock.Unlock()
 
 	w.WriteHeader(http.StatusOK)
 	log.Printf("(%s) Responding with SUCCESS", reqID)
