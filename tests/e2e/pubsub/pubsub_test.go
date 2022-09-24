@@ -272,10 +272,11 @@ func testPublishSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscr
 }
 
 func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, subscriberAppName, protocol string) string {
+	callInitialize(t, subscriberAppName, publisherExternalURL, protocol)
 	// set to respond with success
 	setDesiredResponse(t, subscriberAppName, "success-bulk", publisherExternalURL, protocol)
 
-	log.Printf("Test publish subscribe success flow\n")
+	log.Printf("Test publish bulk subscribe success flow\n")
 	sentMessages := testPublishForBulkSubscribe(t, publisherExternalURL, protocol)
 
 	time.Sleep(5 * time.Second)
@@ -465,7 +466,7 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 func validateMessagesReceivedByBulkSubscriber(t *testing.T, publisherExternalURL string, subscriberApp string, protocol string, validateDeadLetter bool, sentMessages receivedBulkMessagesResponse) {
 	// this is the subscribe app's endpoint, not a dapr endpoint
 	url := fmt.Sprintf("http://%s/tests/callSubscriberMethod", publisherExternalURL)
-	log.Printf("Getting messages received by subscriber using url %s", url)
+	log.Printf("Getting messages received by bulk subscriber using url %s", url)
 
 	request := callSubscriberMethodRequest{
 		RemoteApp: subscriberApp,
@@ -630,34 +631,34 @@ var pubsubTests = []struct {
 	handler            func(*testing.T, string, string, string, string, string) string
 	subscriberResponse string
 }{
-	{
-		name:    "publish and subscribe message successfully",
-		handler: testPublishSubscribeSuccessfully,
-	},
-	{
-		name:               "publish with subscriber returning empty json test delivery of message once",
-		handler:            testValidateRedeliveryOrEmptyJSON,
-		subscriberResponse: "empty-json",
-	},
-	{
-		name:    "publish with no topic",
-		handler: testPublishWithoutTopic,
-	},
-	{
-		name:               "publish with subscriber error test redelivery of messages",
-		handler:            testValidateRedeliveryOrEmptyJSON,
-		subscriberResponse: "error",
-	},
-	{
-		name:               "publish with subscriber retry test redelivery of messages",
-		handler:            testValidateRedeliveryOrEmptyJSON,
-		subscriberResponse: "retry",
-	},
-	{
-		name:               "publish with subscriber invalid status test redelivery of messages",
-		handler:            testValidateRedeliveryOrEmptyJSON,
-		subscriberResponse: "invalid-status",
-	},
+	// {
+	// 	name:    "publish and subscribe message successfully",
+	// 	handler: testPublishSubscribeSuccessfully,
+	// },
+	// {
+	// 	name:               "publish with subscriber returning empty json test delivery of message once",
+	// 	handler:            testValidateRedeliveryOrEmptyJSON,
+	// 	subscriberResponse: "empty-json",
+	// },
+	// {
+	// 	name:    "publish with no topic",
+	// 	handler: testPublishWithoutTopic,
+	// },
+	// {
+	// 	name:               "publish with subscriber error test redelivery of messages",
+	// 	handler:            testValidateRedeliveryOrEmptyJSON,
+	// 	subscriberResponse: "error",
+	// },
+	// {
+	// 	name:               "publish with subscriber retry test redelivery of messages",
+	// 	handler:            testValidateRedeliveryOrEmptyJSON,
+	// 	subscriberResponse: "retry",
+	// },
+	// {
+	// 	name:               "publish with subscriber invalid status test redelivery of messages",
+	// 	handler:            testValidateRedeliveryOrEmptyJSON,
+	// 	subscriberResponse: "invalid-status",
+	// },
 	{
 		name:    "publish and bulk subscribe messages successfully",
 		handler: testPublishBulkSubscribeSuccessfully,
