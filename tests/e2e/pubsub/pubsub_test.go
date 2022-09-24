@@ -92,13 +92,14 @@ type receivedMessagesResponse struct {
 	ReceivedByTopicRaw        []string `json:"pubsub-raw-topic"`
 	ReceivedByTopicDead       []string `json:"pubsub-dead-topic"`
 	ReceivedByTopicDeadLetter []string `json:"pubsub-deadletter-topic"`
+	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
 
-type receivedBulkMessagesResponse struct {
-	// ReceivedByTopicBulkSub    []string `json:"pubsub-bulk-sub-topic"`
-	// ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
-	ReceivedByTopicCEBulkSub []string `json:"pubsub-ce-bulk-sub-topic"`
-}
+// type receivedBulkMessagesResponse struct {
+// 	// ReceivedByTopicBulkSub    []string `json:"pubsub-bulk-sub-topic"`
+// 	// ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
+// 	ReceivedByTopicCEBulkSub []string `json:"pubsub-ce-bulk-sub-topic"`
+// }
 
 type cloudEvent struct {
 	ID              string `json:"id"`
@@ -204,6 +205,10 @@ func testPublish(t *testing.T, publisherExternalURL string, protocol string) rec
 	require.NoError(t, err)
 	offset += numberOfMessagesToPublish + 1
 
+	sentTopicCEBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-ce-bulk-sub-topic", protocol, nil, "")
+	require.NoError(t, err)
+	offset += numberOfMessagesToPublish + 1
+
 	return receivedMessagesResponse{
 		ReceivedByTopicA:          sentTopicAMessages,
 		ReceivedByTopicB:          sentTopicBMessages,
@@ -211,39 +216,40 @@ func testPublish(t *testing.T, publisherExternalURL string, protocol string) rec
 		ReceivedByTopicRaw:        sentTopicRawMessages,
 		ReceivedByTopicDead:       sentTopicDeadMessages,
 		ReceivedByTopicDeadLetter: sentTopicDeadMessages,
+		ReceivedByTopicCEBulkSub: sentTopicCEBulkSubMessages
 	}
 }
 
-func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, protocol string) receivedBulkMessagesResponse {
-	// sentTopicBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-bulk-sub-topic", protocol, nil, "")
-	// require.NoError(t, err)
-	// offset += numberOfMessagesToPublish + 1
+// func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, protocol string) receivedBulkMessagesResponse {
+// 	// sentTopicBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-bulk-sub-topic", protocol, nil, "")
+// 	// require.NoError(t, err)
+// 	// offset += numberOfMessagesToPublish + 1
 
-	sentTopicCEBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-ce-bulk-sub-topic", protocol, nil, "")
-	require.NoError(t, err)
-	offset += numberOfMessagesToPublish + 1
+// 	sentTopicCEBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-ce-bulk-sub-topic", protocol, nil, "")
+// 	require.NoError(t, err)
+// 	offset += numberOfMessagesToPublish + 1
 
-	// metadata := map[string]string{
-	// 	"rawPayload": "true",
-	// }
+// 	// metadata := map[string]string{
+// 	// 	"rawPayload": "true",
+// 	// }
 
-	// sentTopicRawBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-bulk-sub-topic", protocol, nil, "")
-	// require.NoError(t, err)
-	// offset += numberOfMessagesToPublish + 1
+// 	// sentTopicRawBulkSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-bulk-sub-topic", protocol, nil, "")
+// 	// require.NoError(t, err)
+// 	// offset += numberOfMessagesToPublish + 1
 
-	// sentTopicRawMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-topic", protocol, metadata, "")
-	// require.NoError(t, err)
-	// offset += numberOfMessagesToPublish + 1
+// 	// sentTopicRawMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-topic", protocol, metadata, "")
+// 	// require.NoError(t, err)
+// 	// offset += numberOfMessagesToPublish + 1
 
-	// sentTopicBulkSubMessages := make([]string, 0)
-	// sentTopicRawBulkSubMessages := make([]string, 0)
+// 	// sentTopicBulkSubMessages := make([]string, 0)
+// 	// sentTopicRawBulkSubMessages := make([]string, 0)
 
-	return receivedBulkMessagesResponse{
-		// ReceivedByTopicBulkSub:    sentTopicBulkSubMessages,
-		// ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages,
-		ReceivedByTopicCEBulkSub: sentTopicCEBulkSubMessages,
-	}
-}
+// 	return receivedBulkMessagesResponse{
+// 		// ReceivedByTopicBulkSub:    sentTopicBulkSubMessages,
+// 		// ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages,
+// 		ReceivedByTopicCEBulkSub: sentTopicCEBulkSubMessages,
+// 	}
+// }
 
 func postSingleMessage(url string, data []byte) (int, error) {
 	// HTTPPostWithStatus by default sends with content-type application/json
@@ -271,18 +277,18 @@ func testPublishSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscr
 	return subscriberExternalURL
 }
 
-func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, subscriberAppName, protocol string) string {
-	callInitialize(t, subscriberAppName, publisherExternalURL, protocol)
-	// set to respond with success
-	setDesiredResponse(t, subscriberAppName, "success-bulk", publisherExternalURL, protocol)
+// func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, subscriberAppName, protocol string) string {
+// 	callInitialize(t, subscriberAppName, publisherExternalURL, protocol)
+// 	// set to respond with success
+// 	setDesiredResponse(t, subscriberAppName, "success-bulk", publisherExternalURL, protocol)
 
-	log.Printf("Test publish bulk subscribe success flow\n")
-	sentMessages := testPublishForBulkSubscribe(t, publisherExternalURL, protocol)
+// 	log.Printf("Test publish bulk subscribe success flow\n")
+// 	sentMessages := testPublishForBulkSubscribe(t, publisherExternalURL, protocol)
 
-	time.Sleep(5 * time.Second)
-	validateMessagesReceivedByBulkSubscriber(t, publisherExternalURL, subscriberAppName, protocol, false, sentMessages)
-	return subscriberExternalURL
-}
+// 	time.Sleep(5 * time.Second)
+// 	validateMessagesReceivedByBulkSubscriber(t, publisherExternalURL, subscriberAppName, protocol, false, sentMessages)
+// 	return subscriberExternalURL
+// }
 
 func testPublishWithoutTopic(t *testing.T, publisherExternalURL, subscriberExternalURL, _, _, protocol string) string {
 	log.Printf("Test publish without topic\n")
@@ -420,18 +426,20 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 		}
 
 		log.Printf(
-			"subscriber received %d/%d messages on pubsub-a-topic, %d/%d on pubsub-b-topic and %d/%d on pubsub-c-topic, %d/%d on pubsub-raw-topic and %d/%d on dead letter topic",
+			"subscriber received %d/%d messages on pubsub-a-topic, %d/%d on pubsub-b-topic and %d/%d on pubsub-c-topic, %d/%d on pubsub-raw-topic and %d/%d on dead letter topic %d/%d on bulk ce pubsub topic",
 			len(appResp.ReceivedByTopicA), len(sentMessages.ReceivedByTopicA),
 			len(appResp.ReceivedByTopicB), len(sentMessages.ReceivedByTopicB),
 			len(appResp.ReceivedByTopicC), len(sentMessages.ReceivedByTopicC),
 			len(appResp.ReceivedByTopicRaw), len(sentMessages.ReceivedByTopicRaw),
 			len(appResp.ReceivedByTopicDeadLetter), len(sentMessages.ReceivedByTopicDeadLetter),
+			len(appResp.ReceivedByTopicBulkCE), len(sentMessages.ReceivedByTopicBulkCE),
 		)
 
 		if len(appResp.ReceivedByTopicA) != len(sentMessages.ReceivedByTopicA) ||
 			len(appResp.ReceivedByTopicB) != len(sentMessages.ReceivedByTopicB) ||
 			len(appResp.ReceivedByTopicC) != len(sentMessages.ReceivedByTopicC) ||
 			len(appResp.ReceivedByTopicRaw) != len(sentMessages.ReceivedByTopicRaw) ||
+			len(appResp.ReceivedByTopicBulkCE) != len(sentMessages.ReceivedByTopicBulkCE) ||
 			(validateDeadLetter && len(appResp.ReceivedByTopicDeadLetter) != len(sentMessages.ReceivedByTopicDeadLetter)) {
 			log.Printf("Differing lengths in received vs. sent messages, retrying.")
 			time.Sleep(10 * time.Second)
@@ -450,11 +458,14 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 	sort.Strings(appResp.ReceivedByTopicC)
 	sort.Strings(sentMessages.ReceivedByTopicRaw)
 	sort.Strings(appResp.ReceivedByTopicRaw)
+	sort.Strings(sentMessages.receivedByTopicBulkCE)
+	sort.Strings(appResp.receivedByTopicBulkCE)
 
 	assert.Equal(t, sentMessages.ReceivedByTopicA, appResp.ReceivedByTopicA, "different messages received in Topic A")
 	assert.Equal(t, sentMessages.ReceivedByTopicB, appResp.ReceivedByTopicB, "different messages received in Topic B")
 	assert.Equal(t, sentMessages.ReceivedByTopicC, appResp.ReceivedByTopicC, "different messages received in Topic C")
 	assert.Equal(t, sentMessages.ReceivedByTopicRaw, appResp.ReceivedByTopicRaw, "different messages received in Topic Raw")
+	assert.Equal(t, sentMessages.receivedByTopicBulkCE, appResp.receivedByTopicBulkCE, "different messages received in Topic Bulk CE")
 	if validateDeadLetter {
 		// only error response is expected to validate dead letter
 		sort.Strings(sentMessages.ReceivedByTopicDeadLetter)
@@ -463,66 +474,66 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 	}
 }
 
-func validateMessagesReceivedByBulkSubscriber(t *testing.T, publisherExternalURL string, subscriberApp string, protocol string, validateDeadLetter bool, sentMessages receivedBulkMessagesResponse) {
-	// this is the subscribe app's endpoint, not a dapr endpoint
-	url := fmt.Sprintf("http://%s/tests/callSubscriberMethod", publisherExternalURL)
-	log.Printf("Getting messages received by bulk subscriber using url %s", url)
+// func validateMessagesReceivedByBulkSubscriber(t *testing.T, publisherExternalURL string, subscriberApp string, protocol string, validateDeadLetter bool, sentMessages receivedBulkMessagesResponse) {
+// 	// this is the subscribe app's endpoint, not a dapr endpoint
+// 	url := fmt.Sprintf("http://%s/tests/callSubscriberMethod", publisherExternalURL)
+// 	log.Printf("Getting messages received by bulk subscriber using url %s", url)
 
-	request := callSubscriberMethodRequest{
-		RemoteApp: subscriberApp,
-		Protocol:  protocol,
-		Method:    "getMessages",
-	}
+// 	request := callSubscriberMethodRequest{
+// 		RemoteApp: subscriberApp,
+// 		Protocol:  protocol,
+// 		Method:    "getMessages",
+// 	}
 
-	var appResp receivedBulkMessagesResponse
-	var err error
-	for retryCount := 0; retryCount < receiveMessageRetries; retryCount++ {
-		request.ReqID = "c-" + uuid.New().String()
-		rawReq, _ := json.Marshal(request)
-		var resp []byte
-		start := time.Now()
-		resp, err = utils.HTTPPost(url, rawReq)
-		log.Printf("(reqID=%s) Attempt %d complete; took %s", request.ReqID, retryCount, utils.FormatDuration(time.Now().Sub(start)))
-		if err != nil {
-			log.Printf("(reqID=%s) Error in response: %v", request.ReqID, err)
-			time.Sleep(10 * time.Second)
-			continue
-		}
+// 	var appResp receivedBulkMessagesResponse
+// 	var err error
+// 	for retryCount := 0; retryCount < receiveMessageRetries; retryCount++ {
+// 		request.ReqID = "c-" + uuid.New().String()
+// 		rawReq, _ := json.Marshal(request)
+// 		var resp []byte
+// 		start := time.Now()
+// 		resp, err = utils.HTTPPost(url, rawReq)
+// 		log.Printf("(reqID=%s) Attempt %d complete; took %s", request.ReqID, retryCount, utils.FormatDuration(time.Now().Sub(start)))
+// 		if err != nil {
+// 			log.Printf("(reqID=%s) Error in response: %v", request.ReqID, err)
+// 			time.Sleep(10 * time.Second)
+// 			continue
+// 		}
 
-		err = json.Unmarshal(resp, &appResp)
-		if err != nil {
-			err = fmt.Errorf("(reqID=%s) failed to unmarshal JSON. Error: %v. Raw data: %s", request.ReqID, err, string(resp))
-			log.Printf("Error in response: %v", err)
-			time.Sleep(10 * time.Second)
-			continue
-		}
+// 		err = json.Unmarshal(resp, &appResp)
+// 		if err != nil {
+// 			err = fmt.Errorf("(reqID=%s) failed to unmarshal JSON. Error: %v. Raw data: %s", request.ReqID, err, string(resp))
+// 			log.Printf("Error in response: %v", err)
+// 			time.Sleep(10 * time.Second)
+// 			continue
+// 		}
 
-		log.Printf(
-			"subscriber received %d/%d on bulk ce sub topic ",
-			len(appResp.ReceivedByTopicCEBulkSub), len(sentMessages.ReceivedByTopicCEBulkSub),
-		)
+// 		log.Printf(
+// 			"subscriber received %d/%d on bulk ce sub topic ",
+// 			len(appResp.ReceivedByTopicCEBulkSub), len(sentMessages.ReceivedByTopicCEBulkSub),
+// 		)
 
-		if len(appResp.ReceivedByTopicCEBulkSub) != len(sentMessages.ReceivedByTopicCEBulkSub) {
-			log.Printf("Differing lengths in received vs. sent messages, retrying.")
-			time.Sleep(10 * time.Second)
-		} else {
-			break
-		}
-	}
-	require.NoError(t, err, "too many failed attempts")
+// 		if len(appResp.ReceivedByTopicCEBulkSub) != len(sentMessages.ReceivedByTopicCEBulkSub) {
+// 			log.Printf("Differing lengths in received vs. sent messages, retrying.")
+// 			time.Sleep(10 * time.Second)
+// 		} else {
+// 			break
+// 		}
+// 	}
+// 	require.NoError(t, err, "too many failed attempts")
 
-	// Sort messages first because the delivered messages cannot be ordered.
-	sort.Strings(sentMessages.ReceivedByTopicCEBulkSub)
-	sort.Strings(appResp.ReceivedByTopicCEBulkSub)
+// 	// Sort messages first because the delivered messages cannot be ordered.
+// 	sort.Strings(sentMessages.ReceivedByTopicCEBulkSub)
+// 	sort.Strings(appResp.ReceivedByTopicCEBulkSub)
 
-	assert.Equal(t, sentMessages.ReceivedByTopicCEBulkSub, appResp.ReceivedByTopicCEBulkSub, "different messages received in Topic CE Bulk Sub")
-	// if validateDeadLetter {
-	// 	// only error response is expected to validate dead letter
-	// 	sort.Strings(sentMessages.ReceivedByTopicDeadLetter)
-	// 	sort.Strings(appResp.ReceivedByTopicDeadLetter)
-	// 	assert.Equal(t, sentMessages.ReceivedByTopicDeadLetter, appResp.ReceivedByTopicDeadLetter, "different messages received in Topic Dead")
-	// }
-}
+// 	assert.Equal(t, sentMessages.ReceivedByTopicCEBulkSub, appResp.ReceivedByTopicCEBulkSub, "different messages received in Topic CE Bulk Sub")
+// 	// if validateDeadLetter {
+// 	// 	// only error response is expected to validate dead letter
+// 	// 	sort.Strings(sentMessages.ReceivedByTopicDeadLetter)
+// 	// 	sort.Strings(appResp.ReceivedByTopicDeadLetter)
+// 	// 	assert.Equal(t, sentMessages.ReceivedByTopicDeadLetter, appResp.ReceivedByTopicDeadLetter, "different messages received in Topic Dead")
+// 	// }
+// }
 
 var apps []struct {
 	suite      string
@@ -631,38 +642,38 @@ var pubsubTests = []struct {
 	handler            func(*testing.T, string, string, string, string, string) string
 	subscriberResponse string
 }{
-	// {
-	// 	name:    "publish and subscribe message successfully",
-	// 	handler: testPublishSubscribeSuccessfully,
-	// },
-	// {
-	// 	name:               "publish with subscriber returning empty json test delivery of message once",
-	// 	handler:            testValidateRedeliveryOrEmptyJSON,
-	// 	subscriberResponse: "empty-json",
-	// },
-	// {
-	// 	name:    "publish with no topic",
-	// 	handler: testPublishWithoutTopic,
-	// },
-	// {
-	// 	name:               "publish with subscriber error test redelivery of messages",
-	// 	handler:            testValidateRedeliveryOrEmptyJSON,
-	// 	subscriberResponse: "error",
-	// },
-	// {
-	// 	name:               "publish with subscriber retry test redelivery of messages",
-	// 	handler:            testValidateRedeliveryOrEmptyJSON,
-	// 	subscriberResponse: "retry",
-	// },
-	// {
-	// 	name:               "publish with subscriber invalid status test redelivery of messages",
-	// 	handler:            testValidateRedeliveryOrEmptyJSON,
-	// 	subscriberResponse: "invalid-status",
-	// },
 	{
-		name:    "publish and bulk subscribe messages successfully",
-		handler: testPublishBulkSubscribeSuccessfully,
+		name:    "publish and subscribe message successfully",
+		handler: testPublishSubscribeSuccessfully,
 	},
+	{
+		name:               "publish with subscriber returning empty json test delivery of message once",
+		handler:            testValidateRedeliveryOrEmptyJSON,
+		subscriberResponse: "empty-json",
+	},
+	{
+		name:    "publish with no topic",
+		handler: testPublishWithoutTopic,
+	},
+	{
+		name:               "publish with subscriber error test redelivery of messages",
+		handler:            testValidateRedeliveryOrEmptyJSON,
+		subscriberResponse: "error",
+	},
+	{
+		name:               "publish with subscriber retry test redelivery of messages",
+		handler:            testValidateRedeliveryOrEmptyJSON,
+		subscriberResponse: "retry",
+	},
+	{
+		name:               "publish with subscriber invalid status test redelivery of messages",
+		handler:            testValidateRedeliveryOrEmptyJSON,
+		subscriberResponse: "invalid-status",
+	},
+	// {
+	// 	name:    "publish and bulk subscribe messages successfully",
+	// 	handler: testPublishBulkSubscribeSuccessfully,
+	// },
 }
 
 func TestPubSubHTTP(t *testing.T) {
