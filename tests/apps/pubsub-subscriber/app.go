@@ -84,6 +84,19 @@ type subscription struct {
 	Metadata        map[string]string `json:"metadata"`
 }
 
+type BulkRawMessage struct {
+	Entries  []BulkMessageRawEntry `json:"entries"`
+	Topic    string                `json:"topic"`
+	Metadata map[string]string     `json:"metadata"`
+}
+
+type BulkMessageRawEntry struct {
+	EntryID     string            `json:"entryID"`
+	Event       string            `json:"event"`
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
 type BulkMessage struct {
 	Entries  []BulkMessageEntry `json:"entries"`
 	Topic    string             `json:"topic"`
@@ -288,13 +301,25 @@ func readBulkMessageBody(reqID string, r *http.Request) (msgs []AppBulkMessageEn
 		return nil, err
 	}
 
-	msgs, err = extractBulkMessage(reqID, body)
-	if err != nil {
-		return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
-	}
+	if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) {
+		msgs, err = extractBulkMessage(reqID, body, true)
+		if err != nil {
+			return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
+		}
 
-	// // Raw data does not have content-type, so it is handled as-is.
-	// // Because the publisher encodes to JSON before publishing, we need to decode here.
+	} else {
+		msgs, err = extractBulkMessage(reqID, body, true)
+		if err != nil {
+			return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
+		}
+	}
+	// msgs, err = extractBulkMessage(reqID, body, false)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
+	// }
+
+	// Raw data does not have content-type, so it is handled as-is.
+	// Because the publisher encodes to JSON before publishing, we need to decode here.
 	// if strings.HasSuffix(r.URL.String(), pubsubRaw) {
 	// 	var actualMsg string
 	// 	err = json.Unmarshal([]byte(msg), &actualMsg)
@@ -521,56 +546,68 @@ func extractMessage(reqID string, body []byte) (string, error) {
 	return msg, nil
 }
 
-func extractBulkMessage(reqID string, body []byte) ([]AppBulkMessageEntry, error) {
+func extractBulkMessage(reqID string, body []byte, isRawPayload bool) ([]AppBulkMessageEntry, error) {
 	log.Printf("(%s) extractBulkMessage() called with body=%s", reqID, string(body))
 
-	// m1 := make(map[string]interface{})
-	var bulkMsg BulkMessage
+	if !isRawPayload {
+		var bulkMsg BulkMessage
+		err := json.Unmarshal(body, &bulkMsg)
+		if err != nil {
+			log.Printf("(%s) Could not unmarshal bulkMsg: %v", reqID, err)
+			return nil, err
+		}
+
+		finalMsgs := make([]AppBulkMessageEntry, len(bulkMsg.Entries))
+		for i, entry := range bulkMsg.Entries {
+			entryCEData := entry.Event["data"].(string)
+			appMsg := AppBulkMessageEntry{
+				EntryID:  entry.EntryID,
+				EventStr: entryCEData,
+			}
+			finalMsgs[i] = appMsg
+			log.Printf("(%s) output at index: %d, entry id:'%s' is: '%s':", reqID, i, entry.EntryID, entryCEData)
+		}
+		return finalMsgs, nil
+	}
+	var bulkMsg BulkRawMessage
 	err := json.Unmarshal(body, &bulkMsg)
 	if err != nil {
-		log.Printf("(%s) Could not unmarshal m1: %v", reqID, err)
+		log.Printf("(%s) Could not unmarshal raw bulkMsg: %v", reqID, err)
 		return nil, err
 	}
 
-	// if m["data_base64"] != nil {
-	// 	b, err := base64.StdEncoding.DecodeString(m["data_base64"].(string))
-	// 	if err != nil {
-	// 		log.Printf("(%s) Could not base64 decode: %v", reqID, err)
-	// 		return "", err
-	// 	}
-
-	// 	msg := string(b)
-	// 	log.Printf("(%s) output from base64='%s'", reqID, msg)
-	// 	return msg, nil
-	// }
-	// // entriesMsgStr := m1["entries"].(string)
-	// // log.Printf("(%s) output at m1='%s'", reqID, entriesMsgStr)
-
-	// // entriesMsg := m1["entries"].([]byte)
-
-	// // var bulkEntries []BulkMessageEntry
-	// // err2 := json.Unmarshal(entriesMsg, &bulkEntries)
-
-	// if err2 != nil {
-	// 	log.Printf("(%s) Could not unmarshal bulkEntries: %v", reqID, err2)
-	// 	return "", err2
-	// }
-
 	finalMsgs := make([]AppBulkMessageEntry, len(bulkMsg.Entries))
 	for i, entry := range bulkMsg.Entries {
-		// m := make(map[string]interface{})
-		// errEvent := json.Unmarshal([]byte(entry.Event), &m)
-		// if errEvent != nil {
-		// 	log.Printf("(%s) Could not unmarshal, index: %d, entryID: %s, error encountered: %v", reqID, i, entry.EntryID, errEvent)
-		// 	continue
-		// }
-		entryCEData := entry.Event["data"].(string)
+		entryData, err := base64.StdEncoding.DecodeString(entry.Event)
+
+		if err != nil {
+			log.Printf("(%s) Could not base64 decode in bulk entry: %v", reqID, err)
+			continue
+		}
+
+		entryDataStr := string(entryData)
+		log.Printf("(%s) output from base64 in bulk entry %s is:'%s'", reqID, entry.EntryID, entryDataStr)
+
+		// do we need following part - PART S STARTS
+
+		var actualMsg string
+		err = json.Unmarshal([]byte(entryDataStr), &actualMsg)
+		if err != nil {
+			// Log only
+			log.Printf("(%s) Error extracing JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
+		} else {
+			log.Printf("(%s) Output of JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
+			entryDataStr = actualMsg
+		}
+
+		// PART S ENDS
+
 		appMsg := AppBulkMessageEntry{
 			EntryID:  entry.EntryID,
-			EventStr: entryCEData,
+			EventStr: entryDataStr,
 		}
 		finalMsgs[i] = appMsg
-		log.Printf("(%s) output at index: %d, entry id:'%s' is: '%s':", reqID, i, entry.EntryID, entryCEData)
+		log.Printf("(%s) output at index: %d, entry id:'%s' is: '%s':", reqID, i, entry.EntryID, entryData)
 	}
 	return finalMsgs, nil
 }
