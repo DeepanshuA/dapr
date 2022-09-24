@@ -41,7 +41,6 @@ const (
 	pubsubRaw             = "pubsub-raw-topic-http"
 	pubsubDead            = "pubsub-dead-topic-http"
 	pubsubDeadLetter      = "pubsub-deadletter-topic-http"
-	pubsubBulkSubTopic    = "pubsub-bulk-sub-topic-http"
 	pubsubRawBulkSubTopic = "pubsub-raw-bulk-sub-topic-http"
 	pubsubCEBulkSubTopic  = "pubsub-ce-bulk-sub-topic-http"
 	PubSubEnvVar          = "DAPR_TEST_PUBSUB_NAME"
@@ -71,7 +70,6 @@ type receivedMessagesResponse struct {
 	ReceivedByTopicRaw        []string `json:"pubsub-raw-topic"`
 	ReceivedByTopicDead       []string `json:"pubsub-dead-topic"`
 	ReceivedByTopicDeadLetter []string `json:"pubsub-deadletter-topic"`
-	ReceivedByTopicBulkSub    []string `json:"pubsub-bulk-sub-topic"`
 	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
 	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
@@ -141,8 +139,8 @@ const (
 	respondWithRetry
 	// respond with invalid status
 	respondWithInvalidStatus
-	// respond with success for all messages in bulk
-	respondWithSuccessBulk
+	// // respond with success for all messages in bulk
+	// respondWithSuccessBulk
 )
 
 var (
@@ -154,7 +152,6 @@ var (
 	receivedMessagesRaw        sets.String
 	receivedMessagesDead       sets.String
 	receivedMessagesDeadLetter sets.String
-	receivedMessagesBulkSub    sets.String
 	receivedMessagesBulkRaw    sets.String
 	receivedMessagesBulkCE     sets.String
 	desiredResponse            respondWith
@@ -208,14 +205,6 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			PubsubName: pubsubName,
 			Topic:      pubsubDeadLetter,
 			Route:      pubsubDeadLetter,
-		},
-		{
-			PubsubName: pubsubName,
-			Topic:      pubsubBulkSubTopic,
-			Route:      pubsubBulkSubTopic,
-			Metadata: map[string]string{
-				"bulkSubscribe": "true",
-			},
 		},
 		{
 			PubsubName: pubsubName,
@@ -313,24 +302,6 @@ func readBulkMessageBody(reqID string, r *http.Request) (msgs []AppBulkMessageEn
 			return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
 		}
 	}
-	// msgs, err = extractBulkMessage(reqID, body, false)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
-	// }
-
-	// Raw data does not have content-type, so it is handled as-is.
-	// Because the publisher encodes to JSON before publishing, we need to decode here.
-	// if strings.HasSuffix(r.URL.String(), pubsubRaw) {
-	// 	var actualMsg string
-	// 	err = json.Unmarshal([]byte(msg), &actualMsg)
-	// 	if err != nil {
-	// 		// Log only
-	// 		log.Printf("(%s) Error extracing JSON from raw event: %v", reqID, err)
-	// 	} else {
-	// 		msg = actualMsg
-	// 	}
-	// }
-
 	return msgs, nil
 }
 
@@ -466,15 +437,13 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 			entryResponse.Status = "RETRY"
 			bulkResponseEntries[i] = entryResponse
 			continue
-		case respondWithSuccessBulk:
+		case respondWithSuccess:
 			log.Printf("(%s) Responding with SUCCESS for entryID %s", reqID, msg.EntryID)
 			entryResponse.EntryID = msg.EntryID
 			entryResponse.Status = "SUCCESS"
 			bulkResponseEntries[i] = entryResponse
 
-			if strings.HasSuffix(r.URL.String(), pubsubBulkSubTopic) && !receivedMessagesBulkSub.Has(msg.EventStr) {
-				receivedMessagesBulkSub.Insert(msg.EventStr)
-			} else if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
+			if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
 				receivedMessagesBulkRaw.Insert(msg.EventStr)
 			} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkSubTopic) && !receivedMessagesBulkCE.Has(msg.EventStr) {
 				receivedMessagesBulkCE.Insert(msg.EventStr)
@@ -485,29 +454,8 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 				errorMessage := fmt.Sprintf("Unexpected/Multiple redelivery of message during bulk susbcribe from %s", r.URL.String())
 				log.Printf("(%s) Responding with DROP during bulk subscribe. %s", reqID, errorMessage)
 				entryResponse.Status = "DROP"
-				// Return success with DROP status to drop message
-				// w.WriteHeader(http.StatusOK)
-				// json.NewEncoder(w).Encode(appResponse{
-				// 	Message: errorMessage,
-				// 	Status:  "DROP",
-				// })
 			}
-
 			continue
-			// case respondWithError:
-			// 	log.Printf("(%s) Responding with ERROR", reqID)
-			// 	// do not store received messages, respond with error
-			// 	w.WriteHeader(http.StatusInternalServerError)
-			// 	return
-			// case respondWithInvalidStatus:
-			// 	log.Printf("(%s) Responding with INVALID", reqID)
-			// 	// do not store received messages, respond with success but an invalid status
-			// 	w.WriteHeader(http.StatusOK)
-			// 	json.NewEncoder(w).Encode(appResponse{
-			// 		Message: "invalid status triggers retry",
-			// 		Status:  "INVALID",
-			// 	})
-			// 	return
 		}
 	}
 
@@ -516,7 +464,6 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(BulkSubscribeResponse{
 		Statuses: bulkResponseEntries,
 	})
-	// lock.Unlock()
 }
 
 func extractMessage(reqID string, body []byte) (string, error) {
@@ -589,19 +536,15 @@ func extractBulkMessage(reqID string, body []byte, isRawPayload bool) ([]AppBulk
 		entryDataStr := string(entryData)
 		log.Printf("(%s) output from base64 in bulk entry %s is:'%s'", reqID, entry.EntryID, entryDataStr)
 
-		// do we need following part - PART S STARTS
-
-		// var actualMsg string
-		// err = json.Unmarshal([]byte(entryDataStr), &actualMsg)
-		// if err != nil {
-		// 	// Log only
-		// 	log.Printf("(%s) Error extracing JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
-		// } else {
-		// 	log.Printf("(%s) Output of JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, actualMsg)
-		// 	entryDataStr = actualMsg
-		// }
-
-		// PART S ENDS
+		var actualMsg string
+		err = json.Unmarshal([]byte(entryDataStr), &actualMsg)
+		if err != nil {
+			// Log only
+			log.Printf("(%s) Error extracing JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, err)
+		} else {
+			log.Printf("(%s) Output of JSON from raw event in bulk entry %s is: %v", reqID, entry.EntryID, actualMsg)
+			entryDataStr = actualMsg
+		}
 
 		appMsg := AppBulkMessageEntry{
 			EntryID:  entry.EntryID,
@@ -640,7 +583,6 @@ func getReceivedMessages(w http.ResponseWriter, r *http.Request) {
 		ReceivedByTopicRaw:        unique(receivedMessagesRaw.List()),
 		ReceivedByTopicDead:       unique(receivedMessagesDead.List()),
 		ReceivedByTopicDeadLetter: unique(receivedMessagesDeadLetter.List()),
-		ReceivedByTopicBulkSub:    unique(receivedMessagesBulkSub.List()),
 		ReceivedByTopicRawBulkSub: unique(receivedMessagesBulkRaw.List()),
 		ReceivedByTopicCEBulkSub:  unique(receivedMessagesBulkCE.List()),
 	}
@@ -680,7 +622,6 @@ func initializeSets() {
 	receivedMessagesRaw = sets.NewString()
 	receivedMessagesDead = sets.NewString()
 	receivedMessagesDeadLetter = sets.NewString()
-	receivedMessagesBulkSub = sets.NewString()
 	receivedMessagesBulkRaw = sets.NewString()
 	receivedMessagesBulkCE = sets.NewString()
 }
@@ -698,8 +639,8 @@ func appRouter() *mux.Router {
 	router.HandleFunc("/getMessages", getReceivedMessages).Methods("POST")
 	router.HandleFunc("/set-respond-success",
 		setDesiredResponse(respondWithSuccess, "set respond with success")).Methods("POST")
-	router.HandleFunc("/set-respond-success-bulk",
-		setDesiredResponse(respondWithSuccessBulk, "set respond with success for bulk")).Methods("POST")
+	// router.HandleFunc("/set-respond-success-bulk",
+	// 	setDesiredResponse(respondWithSuccessBulk, "set respond with success for bulk")).Methods("POST")
 	router.HandleFunc("/set-respond-error",
 		setDesiredResponse(respondWithError, "set respond with error")).Methods("POST")
 	router.HandleFunc("/set-respond-retry",
@@ -720,7 +661,6 @@ func appRouter() *mux.Router {
 	router.HandleFunc("/"+pubsubDead, subscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubDeadLetter, subscribeHandler).Methods("POST")
 
-	router.HandleFunc("/"+pubsubBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubRawBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubCEBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 
