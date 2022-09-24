@@ -216,7 +216,7 @@ func testPublish(t *testing.T, publisherExternalURL string, protocol string) rec
 		ReceivedByTopicRaw:        sentTopicRawMessages,
 		ReceivedByTopicDead:       sentTopicDeadMessages,
 		ReceivedByTopicDeadLetter: sentTopicDeadMessages,
-		ReceivedByTopicCEBulkSub: sentTopicCEBulkSubMessages
+		ReceivedByTopicCEBulkSub:  sentTopicCEBulkSubMessages,
 	}
 }
 
