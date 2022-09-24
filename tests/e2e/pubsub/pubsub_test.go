@@ -432,14 +432,14 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 			len(appResp.ReceivedByTopicC), len(sentMessages.ReceivedByTopicC),
 			len(appResp.ReceivedByTopicRaw), len(sentMessages.ReceivedByTopicRaw),
 			len(appResp.ReceivedByTopicDeadLetter), len(sentMessages.ReceivedByTopicDeadLetter),
-			len(appResp.ReceivedByTopicBulkCE), len(sentMessages.ReceivedByTopicBulkCE),
+			len(appResp.ReceivedByTopicCEBulkSub), len(sentMessages.ReceivedByTopicCEBulkSub),
 		)
 
 		if len(appResp.ReceivedByTopicA) != len(sentMessages.ReceivedByTopicA) ||
 			len(appResp.ReceivedByTopicB) != len(sentMessages.ReceivedByTopicB) ||
 			len(appResp.ReceivedByTopicC) != len(sentMessages.ReceivedByTopicC) ||
 			len(appResp.ReceivedByTopicRaw) != len(sentMessages.ReceivedByTopicRaw) ||
-			len(appResp.ReceivedByTopicBulkCE) != len(sentMessages.ReceivedByTopicBulkCE) ||
+			len(appResp.ReceivedByTopicCEBulkSub) != len(sentMessages.ReceivedByTopicCEBulkSub) ||
 			(validateDeadLetter && len(appResp.ReceivedByTopicDeadLetter) != len(sentMessages.ReceivedByTopicDeadLetter)) {
 			log.Printf("Differing lengths in received vs. sent messages, retrying.")
 			time.Sleep(10 * time.Second)
@@ -458,14 +458,14 @@ func validateMessagesReceivedBySubscriber(t *testing.T, publisherExternalURL str
 	sort.Strings(appResp.ReceivedByTopicC)
 	sort.Strings(sentMessages.ReceivedByTopicRaw)
 	sort.Strings(appResp.ReceivedByTopicRaw)
-	sort.Strings(sentMessages.receivedByTopicBulkCE)
-	sort.Strings(appResp.receivedByTopicBulkCE)
+	sort.Strings(sentMessages.ReceivedByTopicCEBulkSub)
+	sort.Strings(appResp.ReceivedByTopicCEBulkSub)
 
 	assert.Equal(t, sentMessages.ReceivedByTopicA, appResp.ReceivedByTopicA, "different messages received in Topic A")
 	assert.Equal(t, sentMessages.ReceivedByTopicB, appResp.ReceivedByTopicB, "different messages received in Topic B")
 	assert.Equal(t, sentMessages.ReceivedByTopicC, appResp.ReceivedByTopicC, "different messages received in Topic C")
 	assert.Equal(t, sentMessages.ReceivedByTopicRaw, appResp.ReceivedByTopicRaw, "different messages received in Topic Raw")
-	assert.Equal(t, sentMessages.receivedByTopicBulkCE, appResp.receivedByTopicBulkCE, "different messages received in Topic Bulk CE")
+	assert.Equal(t, sentMessages.ReceivedByTopicCEBulkSub, appResp.ReceivedByTopicCEBulkSub, "different messages received in Topic Bulk CE")
 	if validateDeadLetter {
 		// only error response is expected to validate dead letter
 		sort.Strings(sentMessages.ReceivedByTopicDeadLetter)
