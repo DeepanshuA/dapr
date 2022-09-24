@@ -92,7 +92,7 @@ type BulkMessage struct {
 
 type BulkMessageEntry struct {
 	EntryID     string            `json:"entryID"`
-	Event       []byte            `json:"event"`
+	Event       string            `json:"event"`
 	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
 }
@@ -447,11 +447,11 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 
 			lock.Lock()
 			defer lock.Unlock()
-			if strings.HasSuffix(r.URL.String(), pubsubBulkSubTopic) && !receivedMessagesA.Has(msg.EventStr) {
+			if strings.HasSuffix(r.URL.String(), pubsubBulkSubTopic) && !receivedMessagesBulkSub.Has(msg.EventStr) {
 				receivedMessagesBulkSub.Insert(msg.EventStr)
-			} else if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesB.Has(msg.EventStr) {
+			} else if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
 				receivedMessagesBulkRaw.Insert(msg.EventStr)
-			} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkSubTopic) && !receivedMessagesC.Has(msg.EventStr) {
+			} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkSubTopic) && !receivedMessagesBulkCE.Has(msg.EventStr) {
 				receivedMessagesBulkCE.Insert(msg.EventStr)
 			} else {
 				// This case is triggered when there is multiple redelivery of same message or a message
@@ -522,7 +522,7 @@ func extractMessage(reqID string, body []byte) (string, error) {
 }
 
 func extractBulkMessage(reqID string, body []byte) ([]AppBulkMessageEntry, error) {
-	log.Printf("(%s) extractMessage() called with body=%s", reqID, string(body))
+	log.Printf("(%s) extractBulkMessage() called with body=%s", reqID, string(body))
 
 	// m1 := make(map[string]interface{})
 	var bulkMsg BulkMessage
@@ -559,7 +559,7 @@ func extractBulkMessage(reqID string, body []byte) ([]AppBulkMessageEntry, error
 	finalMsgs := make([]AppBulkMessageEntry, len(bulkMsg.Entries))
 	for i, entry := range bulkMsg.Entries {
 		m := make(map[string]interface{})
-		errEvent := json.Unmarshal(entry.Event, &m)
+		errEvent := json.Unmarshal([]byte(entry.Event), &m)
 		if errEvent != nil {
 			log.Printf("(%s) Could not unmarshal, index: %d, entryID: %s, error encountered: %v", reqID, i, entry.EntryID, errEvent)
 			continue
