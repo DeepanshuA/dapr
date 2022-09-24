@@ -91,10 +91,10 @@ type BulkMessage struct {
 }
 
 type BulkMessageEntry struct {
-	EntryID     string            `json:"entryID"`
-	Event       string            `json:"event"`
-	ContentType string            `json:"contentType,omitempty"`
-	Metadata    map[string]string `json:"metadata"`
+	EntryID     string                 `json:"entryID"`
+	Event       map[string]interface{} `json:"event"`
+	ContentType string                 `json:"contentType,omitempty"`
+	Metadata    map[string]string      `json:"metadata"`
 }
 
 type AppBulkMessageEntry struct {
@@ -558,13 +558,13 @@ func extractBulkMessage(reqID string, body []byte) ([]AppBulkMessageEntry, error
 
 	finalMsgs := make([]AppBulkMessageEntry, len(bulkMsg.Entries))
 	for i, entry := range bulkMsg.Entries {
-		m := make(map[string]interface{})
-		errEvent := json.Unmarshal([]byte(entry.Event), &m)
-		if errEvent != nil {
-			log.Printf("(%s) Could not unmarshal, index: %d, entryID: %s, error encountered: %v", reqID, i, entry.EntryID, errEvent)
-			continue
-		}
-		entryCEData := m["data"].(string)
+		// m := make(map[string]interface{})
+		// errEvent := json.Unmarshal([]byte(entry.Event), &m)
+		// if errEvent != nil {
+		// 	log.Printf("(%s) Could not unmarshal, index: %d, entryID: %s, error encountered: %v", reqID, i, entry.EntryID, errEvent)
+		// 	continue
+		// }
+		entryCEData := entry.Event["data"].(string)
 		appMsg := AppBulkMessageEntry{
 			EntryID:  entry.EntryID,
 			EventStr: entryCEData,
