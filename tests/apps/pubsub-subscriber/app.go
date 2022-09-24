@@ -308,7 +308,7 @@ func readBulkMessageBody(reqID string, r *http.Request) (msgs []AppBulkMessageEn
 		}
 
 	} else {
-		msgs, err = extractBulkMessage(reqID, body, true)
+		msgs, err = extractBulkMessage(reqID, body, false)
 		if err != nil {
 			return nil, fmt.Errorf("error from extractBulkMessage: %w", err)
 		}
@@ -455,6 +455,7 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	// Before we handle the error, see if we need to respond in another way
 	// We still want the message so we can log it
 	lock.Lock()
+	defer lock.Unlock()
 	for i, msg := range msgs {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
@@ -509,13 +510,13 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 			// 	return
 		}
 	}
-	defer lock.Unlock()
 
 	w.WriteHeader(http.StatusOK)
 	log.Printf("(%s) Responding with SUCCESS", reqID)
 	json.NewEncoder(w).Encode(BulkSubscribeResponse{
 		Statuses: bulkResponseEntries,
 	})
+	// lock.Unlock()
 }
 
 func extractMessage(reqID string, body []byte) (string, error) {
