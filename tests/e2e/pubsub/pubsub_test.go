@@ -811,10 +811,10 @@ var pubsubTests = []struct {
 		handler:            testValidateRedeliveryOrEmptyJSON,
 		subscriberResponse: "empty-json",
 	},
-	{
-		name:    "publish and bulk subscribe messages successfully",
-		handler: testPublishBulkSubscribeSuccessfully,
-	},
+	// {
+	// 	name:    "publish and bulk subscribe messages successfully",
+	// 	handler: testPublishBulkSubscribeSuccessfully,
+	// },
 	{
 		name:    "publish with no topic",
 		handler: testPublishWithoutTopic,
