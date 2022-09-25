@@ -452,7 +452,7 @@ func validateMessagesReceivedBySubscriber(
 }
 
 func validateMessagesReceivedWhenSomeTopicsBulkSubscribed(
-	t *testing.T, publisherExternalURL string, subscriberApp string, protocol string, sentMessages receivedBulkMessageRsesponse,
+	t *testing.T, publisherExternalURL string, subscriberApp string, protocol string, sentMessages receivedBulkMessagesResponse,
 ) {
 	// this is the subscribe app's endpoint, not a dapr endpoint
 	url := fmt.Sprintf("http://%s/tests/callSubscriberMethod", publisherExternalURL)
@@ -464,7 +464,7 @@ func validateMessagesReceivedWhenSomeTopicsBulkSubscribed(
 		Method:    "getMessages",
 	}
 
-	var appResp receivedBulkMessageRsesponse
+	var appResp receivedBulkMessagesResponse
 	var err error
 	for retryCount := 0; retryCount < receiveMessageRetries; retryCount++ {
 		request.ReqID = "c-" + uuid.New().String()
