@@ -149,6 +149,8 @@ const (
 	respondWithRetry
 	// respond with invalid status
 	respondWithInvalidStatus
+	// respond with success for all messages in bulk
+	respondWithSuccessBulk
 )
 
 var (
@@ -491,7 +493,7 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 			entryResponse.Status = "RETRY"
 			bulkResponseEntries[i] = entryResponse
 			continue
-		case respondWithSuccess:
+		case respondWithSuccessBulk:
 			log.Printf("(%s) Responding with SUCCESS for entryID %s", reqID, msg.EntryID)
 			entryResponse.EntryID = msg.EntryID
 			entryResponse.Status = "SUCCESS"
@@ -703,6 +705,8 @@ func appRouter() *mux.Router {
 	router.HandleFunc("/getMessages", getReceivedMessages).Methods("POST")
 	router.HandleFunc("/set-respond-success",
 		setDesiredResponse(respondWithSuccess, "set respond with success")).Methods("POST")
+	router.HandleFunc("/set-respond-success-bulk",
+		setDesiredResponse(respondWithSuccessBulk, "set respond with success for bulk")).Methods("POST")
 	router.HandleFunc("/set-respond-error",
 		setDesiredResponse(respondWithError, "set respond with error")).Methods("POST")
 	router.HandleFunc("/set-respond-retry",

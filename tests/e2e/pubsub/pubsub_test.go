@@ -373,7 +373,7 @@ func testPublishSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscr
 func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, subscriberAppName, protocol string) string {
 	callInitialize(t, subscriberAppName, publisherExternalURL, protocol)
 	// set to respond with success
-	setDesiredResponse(t, subscriberAppName, "success", publisherExternalURL, protocol)
+	setDesiredResponse(t, subscriberAppName, "success-bulk", publisherExternalURL, protocol)
 
 	log.Printf("Test publish bulk subscribe success flow\n")
 	sentMessages := testPublishForBulkSubscribe(t, publisherExternalURL, protocol)
@@ -811,10 +811,10 @@ var pubsubTests = []struct {
 		handler:            testValidateRedeliveryOrEmptyJSON,
 		subscriberResponse: "empty-json",
 	},
-	// {
-	// 	name:    "publish and bulk subscribe messages successfully",
-	// 	handler: testPublishBulkSubscribeSuccessfully,
-	// },
+	{
+		name:    "publish and bulk subscribe messages successfully",
+		handler: testPublishBulkSubscribeSuccessfully,
+	},
 	{
 		name:    "publish with no topic",
 		handler: testPublishWithoutTopic,
