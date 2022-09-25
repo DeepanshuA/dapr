@@ -122,6 +122,8 @@ func initializeSets() {
 	receivedMessagesB = sets.NewString()
 	receivedMessagesC = sets.NewString()
 	receivedMessagesRaw = sets.NewString()
+	receivedMessagesRawBulkSub = sets.NewString()
+	receivedMessagesCEBulkSub = sets.NewString()
 }
 
 // This method gets invoked when a remote service has called the app through Dapr

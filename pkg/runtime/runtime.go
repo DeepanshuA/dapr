@@ -711,6 +711,7 @@ func (a *DaprRuntime) subscribeTopic(parentCtx context.Context, name string, top
 	var err error
 	routeMetadata := route.metadata
 	if routeMetadata[BulkSubscribe] == "true" {
+		log.Infof("subscribing to topic='%s' on pubsub='%s'", topic, name)
 		err = a.bulkSubscribeTopic(ctx, policy, name, topic, route)
 	} else {
 		err = a.pubSubs[name].component.Subscribe(ctx, pubsub.SubscribeRequest{

@@ -441,6 +441,7 @@ func (a *DaprRuntime) publishBulkMessageHTTP(ctx context.Context, msg *pubsubBul
 func (a *DaprRuntime) publishBulkMessageGRPC(ctx context.Context, msg *pubsubBulkSubscribedMessage,
 	bulkResponses *[]pubsub.BulkSubscribeResponseEntry, entryIDIndexMap map[string]int, bulkSubDiag *bulkSubIngressDiagnostics,
 ) error {
+	log.Infof("publishing bulk message to app using gRPC, topic: %v", msg.topic)
 	items := make([]*runtimev1pb.TopicEventBulkRequestEntry, len(msg.entries))
 	for i, entry := range msg.entries {
 		item := &runtimev1pb.TopicEventBulkRequestEntry{
@@ -487,6 +488,7 @@ func (a *DaprRuntime) publishBulkMessageGRPC(ctx context.Context, msg *pubsubBul
 	clientV1 := runtimev1pb.NewAppCallbackBulkSubscribeClient(a.grpc.AppClient)
 
 	start := time.Now()
+	log.Infof("invoking app for bulk subscribe, topic: %v", msg.topic)
 	res, err := clientV1.OnBulkTopicEventAlpha1(ctx, envelope)
 	elapsed := diag.ElapsedSince(start)
 
