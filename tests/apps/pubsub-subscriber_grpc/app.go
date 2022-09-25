@@ -321,14 +321,15 @@ func (s *server) OnTopicEvent(ctx context.Context, in *runtimev1pb.TopicEventReq
 }
 
 func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.TopicEventBulkRequest) (*runtimev1pb.TopicEventBulkResponse, error) {
+	reqID := uuid.New().String()
+	log.Printf("(%s) Entered in OnBulkTopicEventAlpha1 in Bulk Subscribe - Topic: %s", reqID, in.Topic)
 	lock.Lock()
 	defer lock.Unlock()
 
-	reqID := uuid.New().String()
 	bulkResponses := make([]*runtimev1pb.TopicEventBulkResponseEntry, len(in.Entries))
 
 	for i, entry := range in.Entries {
-		log.Printf("(%s) Message arrived - Topic: %s, Message: %s", reqID, in.Topic, string(entry.Event))
+		log.Printf("(%s) Message arrived in Bulk Subscribe - Topic: %s, Message: %s", reqID, in.Topic, string(entry.Event))
 
 		if entry.Event == nil {
 			log.Printf("(%s) Responding with DROP in bulk subscribe for entryID: %s. entry.Event is nil", reqID, entry.EntryID)
