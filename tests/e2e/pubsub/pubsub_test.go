@@ -800,6 +800,7 @@ var pubsubTests = []struct {
 	name               string
 	handler            func(*testing.T, string, string, string, string, string) string
 	subscriberResponse string
+	skipPluggable      bool
 }{
 	{
 		name:    "publish and subscribe message successfully",
@@ -811,8 +812,9 @@ var pubsubTests = []struct {
 		subscriberResponse: "empty-json",
 	},
 	{
-		name:    "publish and bulk subscribe messages successfully",
-		handler: testPublishBulkSubscribeSuccessfully,
+		name:          "publish and bulk subscribe messages successfully",
+		handler:       testPublishBulkSubscribeSuccessfully,
+		skipPluggable: true,
 	},
 	{
 		name:    "publish with no topic",
@@ -864,6 +866,9 @@ func TestPubSubHTTP(t *testing.T) {
 		offset = rand.Intn(randomOffsetMax) + 1
 		log.Printf("initial %s offset: %d", app.suite, offset)
 		for _, tc := range pubsubTests {
+			if app.suite == "pluggable" && tc.skipPluggable {
+				continue
+			}
 			t.Run(fmt.Sprintf("%s_%s_%s", app.suite, tc.name, protocol), func(t *testing.T) {
 				subscriberExternalURL = tc.handler(t, publisherExternalURL, subscriberExternalURL, tc.subscriberResponse, app.subscriber, protocol)
 			})
