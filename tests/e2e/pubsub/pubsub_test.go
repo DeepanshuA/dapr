@@ -37,7 +37,7 @@ import (
 	"github.com/dapr/dapr/tests/e2e/utils"
 	kube "github.com/dapr/dapr/tests/platforms/kubernetes"
 	"github.com/dapr/dapr/tests/runner"
-	// apiv1 "k8s.io/api/core/v1"
+	apiv1 "k8s.io/api/core/v1"
 )
 
 var tr *runner.TestRunner
