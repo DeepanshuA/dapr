@@ -52,6 +52,7 @@ const (
 )
 
 var pubsubName = "messagebus"
+var pubsubkafkaName = "kafka-pubsub-comp"
 
 func init() {
 	if psName := os.Getenv(PubSubEnvVar); len(psName) != 0 {
@@ -253,7 +254,7 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 		// 	Route:      pubsubCESubTopic,
 		// },
 		{
-			PubsubName: pubsubName,
+			PubsubName: pubsubkafkaName,
 			Topic:      pubsubRawBulkSubTopic,
 			Route:      pubsubRawBulkSubTopic,
 			Metadata: map[string]string{
@@ -262,7 +263,7 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			},
 		},
 		{
-			PubsubName: pubsubName,
+			PubsubName: pubsubkafkaName,
 			Topic:      pubsubCEBulkSubTopic,
 			Route:      pubsubCEBulkSubTopic,
 			Metadata: map[string]string{
