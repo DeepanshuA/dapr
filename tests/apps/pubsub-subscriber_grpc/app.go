@@ -38,19 +38,23 @@ import (
 )
 
 const (
-	appPort   = "3000"
-	pubsubA   = "pubsub-a-topic-grpc"
-	pubsubB   = "pubsub-b-topic-grpc"
-	pubsubC   = "pubsub-c-topic-grpc"
-	pubsubRaw = "pubsub-raw-topic-grpc"
+	appPort               = "3000"
+	pubsubA               = "pubsub-a-topic-grpc"
+	pubsubB               = "pubsub-b-topic-grpc"
+	pubsubC               = "pubsub-c-topic-grpc"
+	pubsubRaw             = "pubsub-raw-topic-grpc"
+	pubsubRawBulkSubTopic = "pubsub-raw-bulk-sub-topic-grpc"
+	pubsubCEBulkSubTopic  = "pubsub-ce-bulk-sub-topic-grpc"
 )
 
 var (
 	// using sets to make the test idempotent on multiple delivery of same message.
-	receivedMessagesA   sets.String
-	receivedMessagesB   sets.String
-	receivedMessagesC   sets.String
-	receivedMessagesRaw sets.String
+	receivedMessagesA          sets.String
+	receivedMessagesB          sets.String
+	receivedMessagesC          sets.String
+	receivedMessagesRaw        sets.String
+	receivedMessagesRawBulkSub sets.String
+	receivedMessagesCEBulkSub  sets.String
 
 	// boolean variable to respond with empty json message if set.
 	respondWithEmptyJSON bool
@@ -58,16 +62,20 @@ var (
 	respondWithError bool
 	// boolean variable to respond with retry if set.
 	respondWithRetry bool
+	// boolean variable to respond with success for bulk subscribe if set.
+	respondWithBulkSuccess bool
 	// boolean variable to respond with invalid status if set.
 	respondWithInvalidStatus bool
 	lock                     sync.Mutex
 )
 
 type receivedMessagesResponse struct {
-	ReceivedByTopicA   []string `json:"pubsub-a-topic"`
-	ReceivedByTopicB   []string `json:"pubsub-b-topic"`
-	ReceivedByTopicC   []string `json:"pubsub-c-topic"`
-	ReceivedByTopicRaw []string `json:"pubsub-raw-topic"`
+	ReceivedByTopicA          []string `json:"pubsub-a-topic"`
+	ReceivedByTopicB          []string `json:"pubsub-b-topic"`
+	ReceivedByTopicC          []string `json:"pubsub-c-topic"`
+	ReceivedByTopicRaw        []string `json:"pubsub-raw-topic"`
+	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
+	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
 
 // server is our user app.
@@ -89,6 +97,7 @@ func main() {
 	/* #nosec */
 	s := grpc.NewServer()
 	runtimev1pb.RegisterAppCallbackServer(s, &server{})
+	runtimev1pb.RegisterAppCallbackBulkSubscribeServer(s, &server{})
 
 	log.Println("Client starting...")
 
@@ -141,6 +150,8 @@ func (s *server) OnInvoke(ctx context.Context, in *commonv1pb.InvokeRequest) (*c
 		s.setRespondWithError()
 	case "set-respond-retry":
 		s.setRespondWithRetry()
+	case "set-respond-bulk-success":
+		s.setRespondWithBulkSuccess()
 	case "set-respond-empty-json":
 		s.setRespondWithEmptyJSON()
 	case "set-respond-invalid-status":
@@ -171,6 +182,11 @@ func (s *server) setRespondWithError() {
 func (s *server) setRespondWithRetry() {
 	log.Println("setRespondWithRetry called")
 	respondWithRetry = true
+}
+
+func (s *server) setRespondWithBulkSuccess() {
+	log.Println("setRespondWithBulkSuccess called")
+	respondWithBulkSuccess = true
 }
 
 func (s *server) setRespondWithEmptyJSON() {
@@ -204,6 +220,21 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 				Topic:      pubsubRaw,
 				Metadata: map[string]string{
 					"rawPayload": "true",
+				},
+			},
+			{
+				PubsubName: "messagebus",
+				Topic:      pubsubRawBulkSubTopic,
+				Metadata: map[string]string{
+					"rawPayload":    "true",
+					"bulkSubscribe": "true",
+				},
+			},
+			{
+				PubsubName: "messagebus",
+				Topic:      pubsubCEBulkSubTopic,
+				Metadata: map[string]string{
+					"bulkSubscribe": "true",
 				},
 			},
 		},
@@ -286,6 +317,84 @@ func (s *server) OnTopicEvent(ctx context.Context, in *runtimev1pb.TopicEventReq
 	log.Printf("(%s) Responding with SUCCESS", reqID)
 	return &runtimev1pb.TopicEventResponse{
 		Status: runtimev1pb.TopicEventResponse_SUCCESS, //nolint:nosnakecase
+	}, nil
+}
+
+func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.TopicEventBulkRequest) (*runtimev1pb.TopicEventBulkResponse, error) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	reqID := uuid.New().String()
+	bulkResponses := make([]*runtimev1pb.TopicEventBulkResponseEntry, len(in.Entries))
+
+	for i, entry := range in.Entries {
+		log.Printf("(%s) Message arrived - Topic: %s, Message: %s", reqID, in.Topic, string(entry.Event))
+
+		if entry.Event == nil {
+			log.Printf("(%s) Responding with DROP in bulk subscribe for entryID: %s. entry.Event is nil", reqID, entry.EntryID)
+			// Return success with DROP status to drop message
+			bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+				EntryID: entry.EntryID,
+				Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
+			}
+		}
+		var msg string
+		if strings.HasPrefix(in.Topic, pubsubCEBulkSubTopic) {
+			var ceMsg map[string]interface{}
+			err := json.Unmarshal(entry.Event, &ceMsg)
+			if err != nil {
+				log.Printf("(%s) Error extracing ce event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, err)
+				bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+					EntryID: entry.EntryID,
+					Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
+				}
+				continue
+			}
+			msg = ceMsg["data"].(string)
+		} else {
+			// var rawMsg
+			err := json.Unmarshal(entry.Event, &msg)
+			if err != nil {
+				log.Printf("(%s) Error extracing raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, err)
+				// Return success with DROP status to drop message
+				bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+					EntryID: entry.EntryID,
+					Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
+				}
+				continue
+			}
+
+			// Raw data does not have content-type, so it is handled as-is.
+			// Because the publisher encodes to JSON before publishing, we need to decode here.
+			var actualMsg string
+			err = json.Unmarshal([]byte(msg), &actualMsg)
+			if err != nil {
+				log.Printf("(%s) Error extracing JSON from raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, err)
+				bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+					EntryID: entry.EntryID,
+					Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
+				}
+				continue
+			} else {
+				msg = actualMsg
+			}
+		}
+
+		bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+			EntryID: entry.EntryID,
+			Status:  runtimev1pb.TopicEventResponse_SUCCESS, //nolint:nosnakecase
+		}
+		if strings.HasPrefix(in.Topic, pubsubRawBulkSubTopic) && !receivedMessagesRawBulkSub.Has(msg) {
+			receivedMessagesRawBulkSub.Insert(msg)
+		} else if strings.HasPrefix(in.Topic, pubsubCEBulkSubTopic) && !receivedMessagesCEBulkSub.Has(msg) {
+			receivedMessagesCEBulkSub.Insert(msg)
+		} else {
+			log.Printf("(%s) Received duplicate message in bulk subscribe: %s - %s", reqID, in.Topic, msg)
+		}
+	}
+	log.Printf("(%s) Responding with SUCCESS for bulk subscribe", reqID)
+	return &runtimev1pb.TopicEventBulkResponse{
+		Statuses: bulkResponses, //nolint:nosnakecase
 	}, nil
 }
 
