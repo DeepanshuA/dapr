@@ -258,8 +258,10 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			Topic:      pubsubRawBulkSubTopic,
 			Route:      pubsubRawBulkSubTopic,
 			Metadata: map[string]string{
-				"bulkSubscribe": "true",
-				"rawPayload":    "true",
+				"bulkSubscribe":                    "true",
+				"rawPayload":                       "true",
+				"maxBulkSubCount":                  "60",
+				"maxBulkAwaitDurationMilliSeconds": "1000",
 			},
 		},
 		{
@@ -267,7 +269,9 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			Topic:      pubsubCEBulkSubTopic,
 			Route:      pubsubCEBulkSubTopic,
 			Metadata: map[string]string{
-				"bulkSubscribe": "true",
+				"bulkSubscribe":                    "true",
+				"maxBulkSubCount":                  "60",
+				"maxBulkAwaitDurationMilliSeconds": "1000",
 			},
 		},
 	}
