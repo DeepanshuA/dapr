@@ -559,6 +559,10 @@ var pubsubTests = []struct {
 		handler: testPublishSubscribeSuccessfully,
 	},
 	{
+		name:    "publish and bulk subscribe messages successfully",
+		handler: testPublishBulkSubscribeSuccessfully,
+	},
+	{
 		name:               "publish with subscriber returning empty json test delivery of message once",
 		handler:            testValidateRedeliveryOrEmptyJSON,
 		subscriberResponse: "empty-json",
