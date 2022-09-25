@@ -739,56 +739,56 @@ func TestMain(m *testing.M) {
 		},
 	}
 
-	// if utils.TestTargetOS() != "windows" { // pluggable components feature requires unix socket to work
-	// 	redisPubsubPluggableComponent := map[string]apiv1.Container{
-	// 		"dapr-pubsub.redis-pubsub-pluggable-v1-pluggable-messagebus.sock": {
-	// 			Name:  "redis-pubsub-pluggable",
-	// 			Image: runner.BuildTestImageName(redisPubSubPluggableApp),
-	// 		},
-	// 	}
-	// 	pluggableTestApps := []kube.AppDescription{
-	// 		{
-	// 			AppName:             publisherPluggableAppName,
-	// 			DaprEnabled:         true,
-	// 			ImageName:           "e2e-pubsub-publisher",
-	// 			Replicas:            1,
-	// 			IngressEnabled:      true,
-	// 			MetricsEnabled:      true,
-	// 			AppMemoryLimit:      "200Mi",
-	// 			AppMemoryRequest:    "100Mi",
-	// 			Config:              "pluggablecomponentsconfig",
-	// 			PluggableComponents: redisPubsubPluggableComponent,
-	// 			AppEnv: map[string]string{
-	// 				PubSubEnvVar: PubSubPluggableName,
-	// 			},
-	// 		},
-	// 		{
-	// 			AppName:             subscriberPluggableAppName,
-	// 			DaprEnabled:         true,
-	// 			ImageName:           "e2e-pubsub-subscriber",
-	// 			Replicas:            1,
-	// 			IngressEnabled:      true,
-	// 			MetricsEnabled:      true,
-	// 			AppMemoryLimit:      "200Mi",
-	// 			AppMemoryRequest:    "100Mi",
-	// 			Config:              "pluggablecomponentsconfig",
-	// 			PluggableComponents: redisPubsubPluggableComponent,
-	// 			AppEnv: map[string]string{
-	// 				PubSubEnvVar: PubSubPluggableName,
-	// 			},
-	// 		},
-	// 	}
-	// 	testApps = append(testApps, pluggableTestApps...)
-	// 	apps = append(apps, struct {
-	// 		suite      string
-	// 		publisher  string
-	// 		subscriber string
-	// 	}{
-	// 		suite:      "pluggable",
-	// 		publisher:  publisherPluggableAppName,
-	// 		subscriber: subscriberPluggableAppName,
-	// 	})
-	// }
+	if utils.TestTargetOS() != "windows" { // pluggable components feature requires unix socket to work
+		redisPubsubPluggableComponent := map[string]apiv1.Container{
+			"dapr-pubsub.redis-pubsub-pluggable-v1-pluggable-messagebus.sock": {
+				Name:  "redis-pubsub-pluggable",
+				Image: runner.BuildTestImageName(redisPubSubPluggableApp),
+			},
+		}
+		pluggableTestApps := []kube.AppDescription{
+			{
+				AppName:             publisherPluggableAppName,
+				DaprEnabled:         true,
+				ImageName:           "e2e-pubsub-publisher",
+				Replicas:            1,
+				IngressEnabled:      true,
+				MetricsEnabled:      true,
+				AppMemoryLimit:      "200Mi",
+				AppMemoryRequest:    "100Mi",
+				Config:              "pluggablecomponentsconfig",
+				PluggableComponents: redisPubsubPluggableComponent,
+				AppEnv: map[string]string{
+					PubSubEnvVar: PubSubPluggableName,
+				},
+			},
+			{
+				AppName:             subscriberPluggableAppName,
+				DaprEnabled:         true,
+				ImageName:           "e2e-pubsub-subscriber",
+				Replicas:            1,
+				IngressEnabled:      true,
+				MetricsEnabled:      true,
+				AppMemoryLimit:      "200Mi",
+				AppMemoryRequest:    "100Mi",
+				Config:              "pluggablecomponentsconfig",
+				PluggableComponents: redisPubsubPluggableComponent,
+				AppEnv: map[string]string{
+					PubSubEnvVar: PubSubPluggableName,
+				},
+			},
+		}
+		testApps = append(testApps, pluggableTestApps...)
+		apps = append(apps, struct {
+			suite      string
+			publisher  string
+			subscriber string
+		}{
+			suite:      "pluggable",
+			publisher:  publisherPluggableAppName,
+			subscriber: subscriberPluggableAppName,
+		})
+	}
 
 	log.Printf("Creating TestRunner\n")
 	tr = runner.NewTestRunner("pubsubtest", testApps, nil, nil)
@@ -833,10 +833,10 @@ var pubsubTests = []struct {
 		handler:            testValidateRedeliveryOrEmptyJSON,
 		subscriberResponse: "invalid-status",
 	},
-	// {
-	// 	name:    "bulk publish and normal subscribe successfully",
-	// 	handler: testBulkPublishSuccessfully,
-	// },
+	{
+		name:    "bulk publish and normal subscribe successfully",
+		handler: testBulkPublishSuccessfully,
+	},
 }
 
 func TestPubSubHTTP(t *testing.T) {
