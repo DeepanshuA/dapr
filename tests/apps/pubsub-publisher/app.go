@@ -53,6 +53,7 @@ type bulkPublishMessageEntry struct {
 }
 
 var pubsubName = "messagebus"
+var pubsubkafkaName = "kafka-pubsub-comp"
 
 func init() {
 	if psName := os.Getenv(PubSubEnvVar); len(psName) != 0 {
@@ -381,11 +382,15 @@ func performPublishHTTP(reqID string, topic string, jsonValue []byte, contentTyp
 }
 
 func performPublishGRPC(reqID string, topic string, jsonValue []byte, contentType string, metadata map[string]string) (int, error) {
+	psName := pubsubName
+	if strings.Contains(topic, "sub-topic") {
+		psName = pubsubkafkaName
+	}
 	url := fmt.Sprintf("localhost:%d", daprPortGRPC)
 	log.Printf("Connecting to dapr using url %s", url)
 
 	req := &runtimev1pb.PublishEventRequest{
-		PubsubName:      pubsubName,
+		PubsubName:      psName,
 		Topic:           topic,
 		Data:            jsonValue,
 		DataContentType: contentType,

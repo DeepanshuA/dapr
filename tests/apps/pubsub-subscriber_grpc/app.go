@@ -69,6 +69,8 @@ var (
 	lock                     sync.Mutex
 )
 
+var pubsubkafkaName = "kafka-pubsub-comp"
+
 type receivedMessagesResponse struct {
 	ReceivedByTopicA          []string `json:"pubsub-a-topic"`
 	ReceivedByTopicB          []string `json:"pubsub-b-topic"`
@@ -225,7 +227,7 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 				},
 			},
 			{
-				PubsubName: "messagebus",
+				PubsubName: pubsubkafkaName,
 				Topic:      pubsubRawBulkSubTopic,
 				Metadata: map[string]string{
 					"rawPayload":    "true",
@@ -233,7 +235,7 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 				},
 			},
 			{
-				PubsubName: "messagebus",
+				PubsubName: pubsubkafkaName,
 				Topic:      pubsubCEBulkSubTopic,
 				Metadata: map[string]string{
 					"bulkSubscribe": "true",

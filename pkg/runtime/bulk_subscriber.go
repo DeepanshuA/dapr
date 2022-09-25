@@ -72,6 +72,7 @@ func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.
 	log.Infof("checkpoint 1: %s", topic)
 	ps, ok := a.pubSubs[psName]
 	if !ok {
+		log.Infof("checkpoint 501: %s", topic)
 		return runtimePubsub.NotFoundError{PubsubName: psName}
 	}
 

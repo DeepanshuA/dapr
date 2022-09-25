@@ -22,6 +22,7 @@ import (
 
 	contribPubsub "github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/utils"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -45,6 +46,8 @@ type defaultBulkSubscriber struct {
 	p contribPubsub.PubSub
 }
 
+var logBulkSub = logger.NewLogger("dapr.runtime.pubsub")
+
 // NewDefaultBulkSubscriber returns a new defaultBulkSubscriber from a PubSub.
 func NewDefaultBulkSubscriber(p contribPubsub.PubSub) *defaultBulkSubscriber {
 	return &defaultBulkSubscriber{
@@ -60,10 +63,10 @@ func (p *defaultBulkSubscriber) BulkSubscribe(ctx context.Context, req contribPu
 		MaxBulkSubCount:                  utils.GetIntOrDefault(req.Metadata, maxBulkCountKey, defaultMaxBulkCount),
 		MaxBulkAwaitDurationMilliSeconds: utils.GetIntOrDefault(req.Metadata, maxBulkAwaitDurationMsKey, defaultMaxBulkAwaitDurationMs),
 	}
-
+	logBulkSub.Infof("bulksub checkpoint 1: %s", req.Topic)
 	msgCbChan := make(chan msgWithCallback, cfg.MaxBulkSubCount)
 	go processBulkMessages(ctx, req.Topic, msgCbChan, cfg, handler)
-
+	logBulkSub.Infof("bulksub checkpoint 2: %s", req.Topic)
 	// Subscribe to the topic and listen for messages.
 	return p.p.Subscribe(ctx, req, func(ctx context.Context, msg *contribPubsub.NewMessage) error {
 		entryID, err := uuid.NewRandom()
@@ -99,6 +102,7 @@ func (p *defaultBulkSubscriber) BulkSubscribe(ctx context.Context, req contribPu
 // processBulkMessages reads messages from msgChan and publishes them to a BulkHandler.
 // It buffers messages in memory and publishes them in bulk.
 func processBulkMessages(ctx context.Context, topic string, msgCbChan <-chan msgWithCallback, cfg contribPubsub.BulkSubscribeConfig, handler contribPubsub.BulkHandler) {
+	logBulkSub.Infof("bulksub checkpoint 3: %s", topic)
 	messages := make([]contribPubsub.BulkMessageEntry, cfg.MaxBulkSubCount)
 	msgCbMap := make(map[string]func(error), cfg.MaxBulkSubCount)
 
@@ -113,6 +117,7 @@ func processBulkMessages(ctx context.Context, topic string, msgCbChan <-chan msg
 			return
 		case msgCb := <-msgCbChan:
 			messages[n] = msgCb.msg
+			logBulkSub.Infof("bulksub checkpoint 4: %s", topic)
 			n++
 			msgCbMap[msgCb.msg.EntryID] = msgCb.cb
 			if n >= cfg.MaxBulkSubCount {
@@ -133,13 +138,13 @@ func flushMessages(ctx context.Context, topic string, messages []contribPubsub.B
 	if len(messages) == 0 {
 		return
 	}
-
+	logBulkSub.Infof("bulksub checkpoint 5: %s", topic)
 	responses, err := handler(ctx, &contribPubsub.BulkMessage{
 		Topic:    topic,
 		Metadata: map[string]string{},
 		Entries:  messages,
 	})
-
+	logBulkSub.Infof("bulksub checkpoint 7: %s", topic)
 	if err != nil {
 		if responses != nil {
 			// invoke callbacks for each message
