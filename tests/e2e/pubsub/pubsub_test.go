@@ -101,8 +101,8 @@ type receivedMessagesResponse struct {
 }
 
 type receivedBulkMessagesResponse struct {
-	ReceivedByTopicB          []string `json:"pubsub-b-topic"`
-	ReceivedByTopicRaw        []string `json:"pubsub-raw-topic"`
+	ReceivedByTopicRawSub     []string `json:"pubsub-raw-sub-topic"`
+	ReceivedByTopicCESub      []string `json:"pubsub-ce-sub-topic"`
 	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
 	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
@@ -305,7 +305,7 @@ func testPublish(t *testing.T, publisherExternalURL string, protocol string) rec
 }
 
 func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, protocol string) receivedBulkMessagesResponse {
-	sentTopicBMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-b-topic", protocol, nil, "")
+	sentTopicCESubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-ce-sub-topic", protocol, nil, "")
 	require.NoError(t, err)
 	offset += numberOfMessagesToPublish + 1
 
@@ -316,7 +316,7 @@ func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, prot
 	metadata := map[string]string{
 		"rawPayload": "true",
 	}
-	sentTopicRawMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-topic", protocol, metadata, "")
+	sentTopicRawSubMessages, err := sendToPublisher(t, publisherExternalURL, "pubsub-raw-sub-topic", protocol, metadata, "")
 	require.NoError(t, err)
 	offset += numberOfMessagesToPublish + 1
 
@@ -325,8 +325,8 @@ func testPublishForBulkSubscribe(t *testing.T, publisherExternalURL string, prot
 	offset += numberOfMessagesToPublish + 1
 
 	return receivedBulkMessagesResponse{
-		ReceivedByTopicB:          sentTopicBMessages,
-		ReceivedByTopicRaw:        sentTopicRawMessages,
+		ReceivedByTopicRawSub:     sentTopicRawSubMessages,
+		ReceivedByTopicCESub:      sentTopicCESubMessages,
 		ReceivedByTopicRawBulkSub: sentTopicRawBulkSubMessages,
 		ReceivedByTopicCEBulkSub:  sentTopicCEBulkSubMessages,
 	}
@@ -663,15 +663,15 @@ func validateMessagesReceivedWhenSomeTopicsBulkSubscribed(t *testing.T, publishe
 		}
 
 		log.Printf(
-			"subscriber received %d/%d on topic b and %d/%d on topic raw and %d/%d on bulk raw sub topic and %d/%d on bulk ce sub topic ",
-			len(appResp.ReceivedByTopicB), len(sentMessages.ReceivedByTopicB),
-			len(appResp.ReceivedByTopicRaw), len(sentMessages.ReceivedByTopicRaw),
+			"subscriber received %d/%d on topic raw sub and %d/%d on topic ce sub and %d/%d on bulk raw sub topic and %d/%d on bulk ce sub topic ",
+			len(appResp.ReceivedByTopicRawSub), len(sentMessages.ReceivedByTopicRawSub),
+			len(appResp.ReceivedByTopicCESub), len(sentMessages.ReceivedByTopicCESub),
 			len(appResp.ReceivedByTopicRawBulkSub), len(sentMessages.ReceivedByTopicRawBulkSub),
 			len(appResp.ReceivedByTopicCEBulkSub), len(sentMessages.ReceivedByTopicCEBulkSub),
 		)
 
-		if len(appResp.ReceivedByTopicB) != len(sentMessages.ReceivedByTopicB) ||
-			len(appResp.ReceivedByTopicRaw) != len(sentMessages.ReceivedByTopicRaw) ||
+		if len(appResp.ReceivedByTopicRawSub) != len(sentMessages.ReceivedByTopicRawSub) ||
+			len(appResp.ReceivedByTopicCESub) != len(sentMessages.ReceivedByTopicCESub) ||
 			len(appResp.ReceivedByTopicRawBulkSub) != len(sentMessages.ReceivedByTopicRawBulkSub) ||
 			len(appResp.ReceivedByTopicCEBulkSub) != len(sentMessages.ReceivedByTopicCEBulkSub) {
 			log.Printf("Differing lengths in received vs. sent messages, retrying.")
@@ -682,17 +682,17 @@ func validateMessagesReceivedWhenSomeTopicsBulkSubscribed(t *testing.T, publishe
 	}
 	require.NoError(t, err, "too many failed attempts")
 
-	sort.Strings(sentMessages.ReceivedByTopicB)
-	sort.Strings(appResp.ReceivedByTopicB)
-	sort.Strings(sentMessages.ReceivedByTopicRaw)
-	sort.Strings(appResp.ReceivedByTopicRaw)
+	sort.Strings(sentMessages.ReceivedByTopicRawSub)
+	sort.Strings(appResp.ReceivedByTopicRawSub)
+	sort.Strings(sentMessages.ReceivedByTopicCESub)
+	sort.Strings(appResp.ReceivedByTopicCESub)
 	sort.Strings(sentMessages.ReceivedByTopicRawBulkSub)
 	sort.Strings(appResp.ReceivedByTopicRawBulkSub)
 	sort.Strings(sentMessages.ReceivedByTopicCEBulkSub)
 	sort.Strings(appResp.ReceivedByTopicCEBulkSub)
 
-	assert.Equal(t, sentMessages.ReceivedByTopicB, appResp.ReceivedByTopicB, "different messages received in Topic B")
-	assert.Equal(t, sentMessages.ReceivedByTopicRaw, appResp.ReceivedByTopicRaw, "different messages received in Topic Raw")
+	assert.Equal(t, sentMessages.ReceivedByTopicRawSub, appResp.ReceivedByTopicRawSub, "different messages received in Topic Raw Sub")
+	assert.Equal(t, sentMessages.ReceivedByTopicCESub, appResp.ReceivedByTopicCESub, "different messages received in Topic CE Sub")
 	assert.Equal(t, sentMessages.ReceivedByTopicRawBulkSub, appResp.ReceivedByTopicRawBulkSub, "different messages received in Topic Raw Bulk Sub")
 	assert.Equal(t, sentMessages.ReceivedByTopicCEBulkSub, appResp.ReceivedByTopicCEBulkSub, "different messages received in Topic CE Bulk Sub")
 }
