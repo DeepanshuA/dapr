@@ -229,6 +229,9 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 			{
 				PubsubName: pubsubkafkaName,
 				Topic:      pubsubRawBulkSubTopic,
+				Routes: &runtimev1pb.TopicRoutes{
+					Default: pubsubRawBulkSubTopic,
+				},
 				Metadata: map[string]string{
 					"rawPayload":    "true",
 					"bulkSubscribe": "true",
@@ -237,6 +240,9 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 			{
 				PubsubName: pubsubkafkaName,
 				Topic:      pubsubCEBulkSubTopic,
+				Routes: &runtimev1pb.TopicRoutes{
+					Default: pubsubCEBulkSubTopic,
+				},
 				Metadata: map[string]string{
 					"bulkSubscribe": "true",
 				},
