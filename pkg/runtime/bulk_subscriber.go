@@ -69,6 +69,7 @@ type bulkSubIngressDiagnostics struct {
 func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.Runner,
 	psName string, topic string, route TopicRouteElem,
 ) error {
+	log.Infof("checkpoint 1: %s", topic)
 	ps, ok := a.pubSubs[psName]
 	if !ok {
 		return runtimePubsub.NotFoundError{PubsubName: psName}
@@ -88,33 +89,42 @@ func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.
 		bulkSubDiag := newBulkSubIngressDiagnostics()
 		bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(msg.Entries))
 		rawPayload, err := contribMetadata.IsRawPayload(route.metadata)
+		log.Infof("checkpoint 2: %s", topic)
 		if err != nil {
+			log.Infof("checkpoint 3: %s", topic)
 			log.Errorf("error deserializing pubsub metadata: %s", err)
 			if dlqErr := a.sendBulkToDLQIfConfigured(ctx, psName, msg, route, nil, nil, &bulkSubDiag); dlqErr != nil {
 				populateAllBulkResponsesWithError(msg, &bulkResponses, err)
 				reportBulkSubDiagnostics(ctx, topic, &bulkSubDiag)
 				return bulkResponses, err
 			}
+			log.Infof("checkpoint 4: %s", topic)
 			reportBulkSubDiagnostics(ctx, topic, &bulkSubDiag)
 			return nil, nil
 		}
+		log.Infof("checkpoint 5: %s", topic)
 		routePathBulkMessageMap := make(map[string]pubsubBulkSubscribedMessage)
 		entryIDIndexMap := make(map[string]int, len(msg.Entries))
 		hasAnyError := false
 		for i, message := range msg.Entries {
+			log.Infof("checkpoint 6: %s", topic)
 			if entryIDErr := validateEntryID(message.EntryID, i); entryIDErr != nil {
+				log.Infof("checkpoint 7: %s", topic)
 				bulkResponses[i].Error = entryIDErr
 				hasAnyError = true
 				continue
 			}
+			log.Infof("checkpoint 8: %s", topic)
 			entryIDIndexMap[message.EntryID] = i
 			if rawPayload {
+				log.Infof("checkpoint 9: %s", topic)
 				rPath, routeErr := a.getRouteIfProcessable(ctx, route, &(msg.Entries[i]), i, &bulkResponses, string(message.Event), psName, topic, &bulkSubDiag)
 				if routeErr != nil {
 					hasAnyError = true
 					continue
 				}
 				if rPath == "" {
+					log.Infof("checkpoint 13: %s", topic)
 					continue
 				}
 				dataB64 := base64.StdEncoding.EncodeToString(message.Event)
@@ -124,21 +134,28 @@ func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.
 				} else {
 					contenttype = "application/octet-stream"
 				}
+				log.Infof("checkpoint 14: %s", topic)
 				populateBulkSubcribedMessage(&(msg.Entries[i]), dataB64, &routePathBulkMessageMap, rPath, i, msg, false, psName, contenttype)
+				log.Infof("checkpoint 18: %s", topic)
 			} else {
+				log.Infof("checkpoint 19: %s", topic)
 				var cloudEvent map[string]interface{}
 				err = json.Unmarshal(message.Event, &cloudEvent)
 				if err != nil {
+					log.Infof("checkpoint 20: %s", topic)
 					log.Errorf("error deserializing one of the messages in bulk cloud event in pubsub %s and topic %s: %s", psName, msg.Topic, err)
 					bulkResponses[i].Error = err
 					bulkResponses[i].EntryID = message.EntryID
 					hasAnyError = true
 					continue
 				}
+				log.Infof("checkpoint 21: %s", topic)
 				if pubsub.HasExpired(cloudEvent) {
+					log.Infof("checkpoint 22: %s", topic)
 					log.Warnf("dropping expired pub/sub event %v as of %v", cloudEvent[pubsub.IDField], cloudEvent[pubsub.ExpirationField])
 					bulkSubDiag.statusWiseDiag[string(pubsub.Drop)]++
 					if route.deadLetterTopic != "" {
+						log.Infof("checkpoint 23: %s", topic)
 						_ = a.sendToDeadLetter(psName, &pubsub.NewMessage{
 							Data:        message.Event,
 							Topic:       topic,
@@ -146,25 +163,34 @@ func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.
 							ContentType: &message.ContentType,
 						}, route.deadLetterTopic)
 					}
+					log.Infof("checkpoint 24: %s", topic)
 					bulkResponses[i].EntryID = message.EntryID
 					bulkResponses[i].Error = nil
 					continue
 				}
+				log.Infof("checkpoint 25: %s", topic)
 				rPath, routeErr := a.getRouteIfProcessable(ctx, route, &(msg.Entries[i]), i, &bulkResponses, cloudEvent, psName, topic, &bulkSubDiag)
 				if routeErr != nil {
+					log.Infof("checkpoint 26: %s", topic)
 					hasAnyError = true
 					continue
 				}
 				if rPath == "" {
+					log.Infof("checkpoint 27: %s", topic)
 					continue
 				}
+				log.Infof("checkpoint 28: %s", topic)
 				populateBulkSubcribedMessage(&(msg.Entries[i]), cloudEvent, &routePathBulkMessageMap, rPath, i, msg, true, psName, message.ContentType)
+				log.Infof("checkpoint 29: %s", topic)
 			}
 		}
 		var overallInvokeErr error
 		for path, psm := range routePathBulkMessageMap {
+			log.Infof("checkpoint 30: %s", topic)
 			invokeErr := a.createEnvelopeAndInvokeSubscriber(ctx, psm, topic, psName, msg, route, &bulkResponses, &entryIDIndexMap, path, policy, &bulkSubDiag)
+			log.Infof("checkpoint 31: %s", topic)
 			if invokeErr != nil {
+				log.Infof("checkpoint 32: %s", topic)
 				hasAnyError = true
 				err = invokeErr
 				overallInvokeErr = invokeErr
@@ -219,12 +245,14 @@ func (a *DaprRuntime) getRouteIfProcessable(ctx context.Context, route TopicRout
 ) (string, error) {
 	rPath, shouldProcess, routeErr := findMatchingRoute(route.rules, matchElem)
 	if routeErr != nil {
+		log.Infof("checkpoint 10: %s", topic)
 		log.Errorf("error finding matching route for event in bulk subscribe %s and topic %s for entry id %s: %s", psName, topic, message.EntryID, routeErr)
 		(*bulkResponses)[i].EntryID = message.EntryID
 		(*bulkResponses)[i].Error = routeErr
 		return "", routeErr
 	}
 	if !shouldProcess {
+		log.Infof("checkpoint 11: %s", topic)
 		// The event does not match any route specified so ignore it.
 		log.Warnf("no matching route for event in pubsub %s and topic %s; skipping", psName, topic)
 		bulkSubDiag.statusWiseDiag[string(pubsub.Drop)]++
@@ -240,6 +268,7 @@ func (a *DaprRuntime) getRouteIfProcessable(ctx context.Context, route TopicRout
 		(*bulkResponses)[i].Error = nil
 		return "", nil
 	}
+	log.Infof("checkpoint 12: %s, route is: %s", topic, rPath)
 	return rPath, nil
 }
 
@@ -248,6 +277,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 	msg *pubsub.BulkMessage, route TopicRouteElem, bulkResponses *[]pubsub.BulkSubscribeResponseEntry,
 	entryIDIndexMap *map[string]int, path string, policy resiliency.Runner, bulkSubDiag *bulkSubIngressDiagnostics,
 ) error {
+	log.Infof("checkpoint 33: %s", topic)
 	var id string
 	idObj, err := uuid.NewRandom()
 	if err != nil {
@@ -256,6 +286,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 	psm.cloudEvents = psm.cloudEvents[:psm.length]
 	psm.rawData = psm.rawData[:psm.length]
 	psm.entries = psm.entries[:psm.length]
+	log.Infof("checkpoint 34: %s", topic)
 	envelope := runtimePubsub.NewBulkSubscribeEnvelope(&runtimePubsub.BulkSubscribeEnvelope{
 		ID:       id,
 		Topic:    topic,
@@ -264,13 +295,17 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 		Metadata: msg.Metadata,
 	})
 	da, marshalErr := json.Marshal(&envelope)
+	log.Infof("checkpoint 35: %s", topic)
 	if marshalErr != nil {
+		log.Infof("checkpoint 36: %s", topic)
 		log.Errorf("error serializing bulk cloud event in pubsub %s and topic %s: %s", psName, msg.Topic, marshalErr)
 		if route.deadLetterTopic != "" {
+			log.Infof("checkpoint 37: %s", topic)
 			entries := make([]pubsub.BulkMessageEntry, len(psm.entries))
 			for i, entry := range psm.entries {
 				entries[i] = *entry
 			}
+			log.Infof("checkpoint 38: %s", topic)
 			bulkMsg := pubsub.BulkMessage{
 				Entries:  entries,
 				Topic:    msg.Topic,
@@ -278,6 +313,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 			}
 			if dlqErr := a.sendBulkToDeadLetter(ctx, psName, &bulkMsg, route.deadLetterTopic, entryIDIndexMap, nil, bulkSubDiag); dlqErr == nil {
 				// dlq has been configured and message is successfully sent to dlq.
+				log.Infof("checkpoint 39: %s", topic)
 				for _, item := range psm.entries {
 					ind := (*entryIDIndexMap)[item.EntryID]
 					(*bulkResponses)[ind].EntryID = item.EntryID
@@ -286,6 +322,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 				return nil
 			}
 		}
+		log.Infof("checkpoint 40: %s", topic)
 		bulkSubDiag.statusWiseDiag[string(pubsub.Retry)] += int64(len(psm.entries))
 
 		for _, item := range psm.entries {
@@ -295,6 +332,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 		}
 		return marshalErr
 	}
+	log.Infof("checkpoint 41: %s", topic)
 	psm.data = da
 	psm.path = path
 	return policy(func(ctx context.Context) error {
@@ -302,6 +340,7 @@ func (a *DaprRuntime) createEnvelopeAndInvokeSubscriber(ctx context.Context, psm
 		case HTTPProtocol:
 			return a.publishBulkMessageHTTP(ctx, &psm, bulkResponses, *entryIDIndexMap, bulkSubDiag)
 		case GRPCProtocol:
+			log.Infof("checkpoint 42: %s", topic)
 			return a.publishBulkMessageGRPC(ctx, &psm, bulkResponses, *entryIDIndexMap, bulkSubDiag)
 		default:
 			return backoff.Permanent(errors.New("invalid application protocol"))
@@ -626,12 +665,14 @@ func populateBulkSubcribedMessage(message *pubsub.BulkMessageEntry, event interf
 		EntryID:     message.EntryID,
 		ContentType: contentType,
 	}
+	log.Infof("checkpoint 15: %s", msg.Topic)
 	var cloudEvent map[string]interface{}
 	mapTypeEvent, ok := event.(map[string]interface{})
 	if ok {
 		cloudEvent = mapTypeEvent
 	}
 	if val, ok := (*routePathBulkMessageMap)[rPath]; ok {
+		log.Infof("checkpoint 16: %s", msg.Topic)
 		if isCloudEvent {
 			val.cloudEvents[val.length] = mapTypeEvent
 		}
@@ -640,6 +681,7 @@ func populateBulkSubcribedMessage(message *pubsub.BulkMessageEntry, event interf
 		val.length++
 		(*routePathBulkMessageMap)[rPath] = val
 	} else {
+		log.Infof("checkpoint 17: %s", msg.Topic)
 		cloudEvents := make([]map[string]interface{}, len(msg.Entries))
 		rawDataItems := make([]runtimePubsub.BulkSubscribeMessageItem, len(msg.Entries))
 		rawDataItems[0] = childMessage
