@@ -366,6 +366,7 @@ func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.Top
 				continue
 			}
 			msg = ceMsg["data"].(string)
+			log.Printf("(%s) Value of ce event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, msg)
 		} else {
 			// var rawMsg
 			err := json.Unmarshal(entry.Event, &msg)
