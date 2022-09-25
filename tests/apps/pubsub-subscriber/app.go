@@ -301,7 +301,7 @@ func readMessageBody(reqID string, r *http.Request) (msg string, err error) {
 
 	// Raw data does not have content-type, so it is handled as-is.
 	// Because the publisher encodes to JSON before publishing, we need to decode here.
-	if strings.HasSuffix(r.URL.String(), pubsubRaw) || strings.HasSuffix(r.URL.String(), pubsubRawBulkTopic) {
+	if strings.HasSuffix(r.URL.String(), pubsubRaw) || strings.HasSuffix(r.URL.String(), pubsubRawBulkTopic) || strings.HasSuffix(r.URL.String(), pubsubRawSubTopic) {
 		var actualMsg string
 		err = json.Unmarshal([]byte(msg), &actualMsg)
 		if err != nil {
