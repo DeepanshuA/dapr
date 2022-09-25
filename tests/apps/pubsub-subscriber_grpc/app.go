@@ -233,8 +233,10 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 					Default: pubsubRawBulkSubTopic,
 				},
 				Metadata: map[string]string{
-					"rawPayload":    "true",
-					"bulkSubscribe": "true",
+					"rawPayload":                       "true",
+					"bulkSubscribe":                    "true",
+					"maxBulkSubCount":                  "60",
+					"maxBulkAwaitDurationMilliSeconds": "1000",
 				},
 			},
 			{
@@ -244,7 +246,9 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 					Default: pubsubCEBulkSubTopic,
 				},
 				Metadata: map[string]string{
-					"bulkSubscribe": "true",
+					"bulkSubscribe":                    "true",
+					"maxBulkSubCount":                  "60",
+					"maxBulkAwaitDurationMilliSeconds": "1000",
 				},
 			},
 		},
@@ -374,21 +378,21 @@ func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.Top
 				}
 				continue
 			}
-
+			log.Printf("(%s) Value of raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, msg)
 			// Raw data does not have content-type, so it is handled as-is.
 			// Because the publisher encodes to JSON before publishing, we need to decode here.
-			var actualMsg string
-			err = json.Unmarshal([]byte(msg), &actualMsg)
-			if err != nil {
-				log.Printf("(%s) Error extracing JSON from raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, err)
-				bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
-					EntryID: entry.EntryID,
-					Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
-				}
-				continue
-			} else {
-				msg = actualMsg
-			}
+			// var actualMsg string
+			// err = json.Unmarshal([]byte(msg), &actualMsg)
+			// if err != nil {
+			// 	log.Printf("(%s) Error extracing JSON from raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, err)
+			// 	bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
+			// 		EntryID: entry.EntryID,
+			// 		Status:  runtimev1pb.TopicEventResponse_DROP, //nolint:nosnakecase
+			// 	}
+			// 	continue
+			// } else {
+			// 	msg = actualMsg
+			// }
 		}
 
 		bulkResponses[i] = &runtimev1pb.TopicEventBulkResponseEntry{
