@@ -33,19 +33,19 @@ import (
 )
 
 const (
-	appPort               = 3000
-	pubsubA               = "pubsub-a-topic-http"
-	pubsubB               = "pubsub-b-topic-http"
-	pubsubC               = "pubsub-c-topic-http"
-	pubsubJob             = "pubsub-job-topic-http"
-	pubsubRaw             = "pubsub-raw-topic-http"
-	pubsubDead            = "pubsub-dead-topic-http"
-	pubsubDeadLetter      = "pubsub-deadletter-topic-http"
-	pubsubBulkTopic       = "pubsub-bulk-topic-http"
-	pubsubRawBulkTopic    = "pubsub-raw-bulk-topic-http"
-	pubsubCEBulkTopic     = "pubsub-ce-bulk-topic-http"
-	pubsubRawSubTopic     = "pubsub-raw-sub-topic-http"
-	pubsubCESubTopic      = "pubsub-ce-sub-topic-http"
+	appPort            = 3000
+	pubsubA            = "pubsub-a-topic-http"
+	pubsubB            = "pubsub-b-topic-http"
+	pubsubC            = "pubsub-c-topic-http"
+	pubsubJob          = "pubsub-job-topic-http"
+	pubsubRaw          = "pubsub-raw-topic-http"
+	pubsubDead         = "pubsub-dead-topic-http"
+	pubsubDeadLetter   = "pubsub-deadletter-topic-http"
+	pubsubBulkTopic    = "pubsub-bulk-topic-http"
+	pubsubRawBulkTopic = "pubsub-raw-bulk-topic-http"
+	pubsubCEBulkTopic  = "pubsub-ce-bulk-topic-http"
+	// pubsubRawSubTopic     = "pubsub-raw-sub-topic-http"
+	// pubsubCESubTopic      = "pubsub-ce-sub-topic-http"
 	pubsubRawBulkSubTopic = "pubsub-raw-bulk-sub-topic-http"
 	pubsubCEBulkSubTopic  = "pubsub-ce-bulk-sub-topic-http"
 	PubSubEnvVar          = "DAPR_TEST_PUBSUB_NAME"
@@ -78,8 +78,8 @@ type receivedMessagesResponse struct {
 	ReceivedByTopicBulk       []string `json:"pubsub-bulk-topic"`
 	ReceivedByTopicRawBulk    []string `json:"pubsub-raw-bulk-topic"`
 	ReceivedByTopicCEBulk     []string `json:"pubsub-ce-bulk-topic"`
-	ReceivedByTopicRawSub     []string `json:"pubsub-raw-sub-topic"`
-	ReceivedByTopicCESub      []string `json:"pubsub-ce-sub-topic"`
+	// ReceivedByTopicRawSub     []string `json:"pubsub-raw-sub-topic"`
+	// ReceivedByTopicCESub      []string `json:"pubsub-ce-sub-topic"`
 	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
 	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
@@ -165,12 +165,12 @@ var (
 	receivedMessagesBulkTopic    sets.String
 	receivedMessagesRawBulkTopic sets.String
 	receivedMessagesCEBulkTopic  sets.String
-	receivedMessagesSubRaw       sets.String
-	receivedMessagesSubCE        sets.String
-	receivedMessagesBulkRaw      sets.String
-	receivedMessagesBulkCE       sets.String
-	desiredResponse              respondWith
-	lock                         sync.Mutex
+	// receivedMessagesSubRaw       sets.String
+	// receivedMessagesSubCE        sets.String
+	receivedMessagesBulkRaw sets.String
+	receivedMessagesBulkCE  sets.String
+	desiredResponse         respondWith
+	lock                    sync.Mutex
 )
 
 // indexHandler is the handler for root path
@@ -239,19 +239,19 @@ func configureSubscribeHandler(w http.ResponseWriter, _ *http.Request) {
 			Topic:      pubsubCEBulkTopic,
 			Route:      pubsubCEBulkTopic,
 		},
-		{
-			PubsubName: pubsubName,
-			Topic:      pubsubRawSubTopic,
-			Route:      pubsubRawSubTopic,
-			Metadata: map[string]string{
-				"rawPayload": "true",
-			},
-		},
-		{
-			PubsubName: pubsubName,
-			Topic:      pubsubCESubTopic,
-			Route:      pubsubCESubTopic,
-		},
+		// {
+		// 	PubsubName: pubsubName,
+		// 	Topic:      pubsubRawSubTopic,
+		// 	Route:      pubsubRawSubTopic,
+		// 	Metadata: map[string]string{
+		// 		"rawPayload": "true",
+		// 	},
+		// },
+		// {
+		// 	PubsubName: pubsubName,
+		// 	Topic:      pubsubCESubTopic,
+		// 	Route:      pubsubCESubTopic,
+		// },
 		{
 			PubsubName: pubsubName,
 			Topic:      pubsubRawBulkSubTopic,
@@ -303,7 +303,7 @@ func readMessageBody(reqID string, r *http.Request) (msg string, err error) {
 
 	// Raw data does not have content-type, so it is handled as-is.
 	// Because the publisher encodes to JSON before publishing, we need to decode here.
-	if strings.HasSuffix(r.URL.String(), pubsubRaw) || strings.HasSuffix(r.URL.String(), pubsubRawBulkTopic) || strings.HasSuffix(r.URL.String(), pubsubRawSubTopic) {
+	if strings.HasSuffix(r.URL.String(), pubsubRaw) || strings.HasSuffix(r.URL.String(), pubsubRawBulkTopic) {
 		var actualMsg string
 		err = json.Unmarshal([]byte(msg), &actualMsg)
 		if err != nil {
@@ -421,10 +421,6 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 		receivedMessagesRawBulkTopic.Insert(msg)
 	} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkTopic) && !receivedMessagesCEBulkTopic.Has(msg) {
 		receivedMessagesCEBulkTopic.Insert(msg)
-	} else if strings.HasSuffix(r.URL.String(), pubsubRawSubTopic) && !receivedMessagesSubRaw.Has(msg) {
-		receivedMessagesSubRaw.Insert(msg)
-	} else if strings.HasSuffix(r.URL.String(), pubsubCESubTopic) && !receivedMessagesSubCE.Has(msg) {
-		receivedMessagesSubCE.Insert(msg)
 	} else {
 		// This case is triggered when there is multiple redelivery of same message or a message
 		// is thre for an unknown URL path
@@ -642,8 +638,8 @@ func getReceivedMessages(w http.ResponseWriter, r *http.Request) {
 		ReceivedByTopicBulk:       unique(receivedMessagesBulkTopic.List()),
 		ReceivedByTopicRawBulk:    unique(receivedMessagesRawBulkTopic.List()),
 		ReceivedByTopicCEBulk:     unique(receivedMessagesCEBulkTopic.List()),
-		ReceivedByTopicRawSub:     unique(receivedMessagesSubRaw.List()),
-		ReceivedByTopicCESub:      unique(receivedMessagesSubCE.List()),
+		// ReceivedByTopicRawSub:     unique(receivedMessagesSubRaw.List()),
+		// ReceivedByTopicCESub:      unique(receivedMessagesSubCE.List()),
 		ReceivedByTopicRawBulkSub: unique(receivedMessagesBulkRaw.List()),
 		ReceivedByTopicCEBulkSub:  unique(receivedMessagesBulkCE.List()),
 	}
@@ -686,8 +682,8 @@ func initializeSets() {
 	receivedMessagesBulkTopic = sets.NewString()
 	receivedMessagesRawBulkTopic = sets.NewString()
 	receivedMessagesCEBulkTopic = sets.NewString()
-	receivedMessagesSubRaw = sets.NewString()
-	receivedMessagesSubCE = sets.NewString()
+	// receivedMessagesSubRaw = sets.NewString()
+	// receivedMessagesSubCE = sets.NewString()
 	receivedMessagesBulkRaw = sets.NewString()
 	receivedMessagesBulkCE = sets.NewString()
 }
@@ -730,8 +726,8 @@ func appRouter() *mux.Router {
 	router.HandleFunc("/"+pubsubRawBulkTopic, subscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubCEBulkTopic, subscribeHandler).Methods("POST")
 
-	router.HandleFunc("/"+pubsubRawSubTopic, subscribeHandler).Methods("POST")
-	router.HandleFunc("/"+pubsubCESubTopic, subscribeHandler).Methods("POST")
+	// router.HandleFunc("/"+pubsubRawSubTopic, subscribeHandler).Methods("POST")
+	// router.HandleFunc("/"+pubsubCESubTopic, subscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubRawBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 	router.HandleFunc("/"+pubsubCEBulkSubTopic, bulkSubscribeHandler).Methods("POST")
 
