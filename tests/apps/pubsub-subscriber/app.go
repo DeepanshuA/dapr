@@ -172,6 +172,7 @@ var (
 	receivedMessagesBulkCE  sets.String
 	desiredResponse         respondWith
 	lock                    sync.Mutex
+	kLock                   sync.Mutex
 )
 
 // indexHandler is the handler for root path
@@ -482,8 +483,8 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Before we handle the error, see if we need to respond in another way
 	// We still want the message so we can log it
-	lock.Lock()
-	defer lock.Unlock()
+	kLock.Lock()
+	defer kLock.Unlock()
 	for i, msg := range msgs {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
