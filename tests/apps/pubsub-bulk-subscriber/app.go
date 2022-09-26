@@ -546,8 +546,8 @@ func initializeHandler(w http.ResponseWriter, _ *http.Request) {
 // initialize all the sets for a clean test.
 func initializeSets() {
 	// initialize all the sets
-	// receivedMessagesSubRaw = sets.NewString()
-	// receivedMessagesSubCE = sets.NewString()
+	receivedMessagesSubRaw = sets.NewString()
+	receivedMessagesSubCE = sets.NewString()
 	receivedMessagesBulkRaw = sets.NewString()
 	receivedMessagesBulkCE = sets.NewString()
 }
