@@ -22,7 +22,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -37,7 +36,6 @@ import (
 	"github.com/dapr/dapr/tests/e2e/utils"
 	kube "github.com/dapr/dapr/tests/platforms/kubernetes"
 	"github.com/dapr/dapr/tests/runner"
-	apiv1 "k8s.io/api/core/v1"
 )
 
 var tr *runner.TestRunner
@@ -375,6 +373,7 @@ func TestMain(m *testing.M) {
 			AppMemoryRequest: "100Mi",
 		},
 	}
+}
 
 var pubsubTests = []struct {
 	name               string
@@ -382,8 +381,8 @@ var pubsubTests = []struct {
 	subscriberResponse string
 }{
 	{
-		name:            "publish and bulk subscribe messages successfully",
-		handler:         testPublishBulkSubscribeSuccessfully,
+		name:    "publish and bulk subscribe messages successfully",
+		handler: testPublishBulkSubscribeSuccessfully,
 	},
 }
 
