@@ -485,13 +485,13 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Before we handle the error, see if we need to respond in another way
 	// We still want the message so we can log it
-	if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) {
-		krawLock.Lock()
-		defer krawLock.Unlock()
-	} else {
-		kceLock.Lock()
-		defer kceLock.Unlock()
-	}
+	// if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) {
+	// 	krawLock.Lock()
+	// 	defer krawLock.Unlock()
+	// } else {
+	// 	kceLock.Lock()
+	// 	defer kceLock.Unlock()
+	// }
 	for i, msg := range msgs {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
