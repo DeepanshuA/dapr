@@ -57,6 +57,7 @@ const (
 	metadataPrefix             = "metadata."
 	publisherAppName           = "pubsub-publisher"
 	subscriberAppName          = "pubsub-subscriber"
+	bulkSubscriberAppName      = "pubsub-bulk-subscriber"
 	publisherPluggableAppName  = "pubsub-publisher-pluggable"
 	subscriberPluggableAppName = "pubsub-subscriber-pluggable"
 	redisPubSubPluggableApp    = "e2e-pluggable_redis-pubsub"
@@ -708,6 +709,11 @@ var apps []struct {
 		publisher:  publisherAppName,
 		subscriber: subscriberAppName,
 	},
+	{
+		suite:      "built-in-bulk",
+		publisher:  publisherAppName,
+		subscriber: bulkSubscriberAppName,
+	},
 }
 
 func TestMain(m *testing.M) {
@@ -731,6 +737,16 @@ func TestMain(m *testing.M) {
 			AppName:          subscriberAppName,
 			DaprEnabled:      true,
 			ImageName:        "e2e-pubsub-subscriber",
+			Replicas:         1,
+			IngressEnabled:   true,
+			MetricsEnabled:   true,
+			AppMemoryLimit:   "200Mi",
+			AppMemoryRequest: "100Mi",
+		},
+		{
+			AppName:          bulkSubscriberAppName,
+			DaprEnabled:      true,
+			ImageName:        "e2e-pubsub-bulk-subscriber",
 			Replicas:         1,
 			IngressEnabled:   true,
 			MetricsEnabled:   true,
@@ -800,7 +816,8 @@ var pubsubTests = []struct {
 	name               string
 	handler            func(*testing.T, string, string, string, string, string) string
 	subscriberResponse string
-	skipPluggable      bool
+	isSpecificSuite    bool
+	suiteName          string
 }{
 	{
 		name:    "publish and subscribe message successfully",
@@ -812,9 +829,10 @@ var pubsubTests = []struct {
 		subscriberResponse: "empty-json",
 	},
 	{
-		name:          "publish and bulk subscribe messages successfully",
-		handler:       testPublishBulkSubscribeSuccessfully,
-		skipPluggable: true,
+		name:            "publish and bulk subscribe messages successfully",
+		handler:         testPublishBulkSubscribeSuccessfully,
+		isSpecificSuite: true,
+		suiteName:       "built-in-bulk",
 	},
 	{
 		name:    "publish with no topic",
@@ -866,9 +884,12 @@ func TestPubSubHTTP(t *testing.T) {
 		offset = rand.Intn(randomOffsetMax) + 1
 		log.Printf("initial %s offset: %d", app.suite, offset)
 		for _, tc := range pubsubTests {
-			if app.suite == "pluggable" && tc.skipPluggable {
+			if tc.isSpecificTest && tc.suiteName != app.suite {
 				continue
 			}
+			// if app.suite == "pluggable" && tc.skipPluggable {
+			// 	continue
+			// }
 			t.Run(fmt.Sprintf("%s_%s_%s", app.suite, tc.name, protocol), func(t *testing.T) {
 				subscriberExternalURL = tc.handler(t, publisherExternalURL, subscriberExternalURL, tc.subscriberResponse, app.subscriber, protocol)
 			})
