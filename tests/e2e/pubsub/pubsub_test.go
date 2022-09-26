@@ -884,7 +884,7 @@ func TestPubSubHTTP(t *testing.T) {
 		offset = rand.Intn(randomOffsetMax) + 1
 		log.Printf("initial %s offset: %d", app.suite, offset)
 		for _, tc := range pubsubTests {
-			if tc.isSpecificTest && tc.suiteName != app.suite {
+			if tc.isSpecificSuite && tc.suiteName != app.suite {
 				continue
 			}
 			// if app.suite == "pluggable" && tc.skipPluggable {
