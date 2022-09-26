@@ -47,6 +47,8 @@ const (
 	pubsubRawBulkTopic    = "pubsub-raw-bulk-topic-grpc"
 	pubsubCEBulkTopic     = "pubsub-ce-bulk-topic-grpc"
 	pubsubDefBulkTopic    = "pubsub-def-bulk-topic-grpc"
+	pubsubRawSubTopic     = "pubsub-raw-sub-topic-grpc"
+	pubsubCESubTopic      = "pubsub-ce-sub-topic-grpc"
 	pubsubRawBulkSubTopic = "pubsub-raw-bulk-sub-topic-grpc"
 	pubsubCEBulkSubTopic  = "pubsub-ce-bulk-sub-topic-grpc"
 	pubsubName            = "messagebus"
@@ -63,6 +65,8 @@ var (
 	receivedMessagesRawBulkTopic sets.String
 	receivedMessagesCEBulkTopic  sets.String
 	receivedMessagesDefBulkTopic sets.String
+	receivedMessagesSubRaw       sets.String
+	receivedMessagesSubCE        sets.String
 	receivedMessagesRawBulkSub   sets.String
 	receivedMessagesCEBulkSub    sets.String
 
@@ -86,6 +90,8 @@ type receivedMessagesResponse struct {
 	ReceivedByTopicRawBulk    []string `json:"pubsub-raw-bulk-topic"`
 	ReceivedByTopicCEBulk     []string `json:"pubsub-ce-bulk-topic"`
 	ReceivedByTopicDefBulk    []string `json:"pubsub-def-bulk-topic"`
+	ReceivedByTopicRawSub     []string `json:"pubsub-raw-sub-topic"`
+	ReceivedByTopicCESub      []string `json:"pubsub-ce-sub-topic"`
 	ReceivedByTopicRawBulkSub []string `json:"pubsub-raw-bulk-sub-topic"`
 	ReceivedByTopicCEBulkSub  []string `json:"pubsub-ce-bulk-sub-topic"`
 }
@@ -138,6 +144,8 @@ func initializeSets() {
 	receivedMessagesRawBulkTopic = sets.NewString()
 	receivedMessagesCEBulkTopic = sets.NewString()
 	receivedMessagesDefBulkTopic = sets.NewString()
+	receivedMessagesSubRaw = sets.NewString()
+	receivedMessagesSubCE = sets.NewString()
 	receivedMessagesRawBulkSub = sets.NewString()
 	receivedMessagesCEBulkSub = sets.NewString()
 }
@@ -187,6 +195,8 @@ func (s *server) getMessages(reqID string) []byte {
 		ReceivedByTopicRawBulk:    receivedMessagesRawBulkTopic.List(),
 		ReceivedByTopicCEBulk:     receivedMessagesCEBulkTopic.List(),
 		ReceivedByTopicDefBulk:    receivedMessagesDefBulkTopic.List(),
+		ReceivedByTopicRawSub:     receivedMessagesSubRaw.List(),
+		ReceivedByTopicCESub:      receivedMessagesSubCE.List(),
 		ReceivedByTopicRawBulkSub: receivedMessagesRawBulkSub.List(),
 		ReceivedByTopicCEBulkSub:  receivedMessagesCEBulkSub.List(),
 	}
@@ -259,6 +269,23 @@ func (s *server) ListTopicSubscriptions(ctx context.Context, in *emptypb.Empty) 
 			{
 				PubsubName: pubsubName,
 				Topic:      pubsubDefBulkTopic,
+			},
+			{
+				PubsubName: pubsubKafka,
+				Topic:      pubsubRawSubTopic,
+				Routes: &runtimev1pb.TopicRoutes{
+					Default: pubsubRawSubTopic,
+				},
+				Metadata: map[string]string{
+					"rawPayload": "true",
+				},
+			},
+			{
+				PubsubName: pubsubKafka,
+				Topic:      pubsubCESubTopic,
+				Routes: &runtimev1pb.TopicRoutes{
+					Default: pubsubCESubTopic,
+				},
 			},
 			{
 				PubsubName: pubsubKafka,
@@ -389,6 +416,10 @@ func (s *server) OnTopicEvent(ctx context.Context, in *runtimev1pb.TopicEventReq
 		receivedMessagesCEBulkTopic.Insert(msg)
 	} else if strings.HasSuffix(in.Topic, pubsubDefBulkTopic) && !receivedMessagesDefBulkTopic.Has(msg) {
 		receivedMessagesDefBulkTopic.Insert(msg)
+	} else if strings.HasPrefix(in.Topic, pubsubRawSubTopic) && !receivedMessagesSubRaw.Has(msg) {
+		receivedMessagesSubRaw.Insert(msg)
+	} else if strings.HasPrefix(in.Topic, pubsubCESubTopic) && !receivedMessagesSubCE.Has(msg) {
+		receivedMessagesSubCE.Insert(msg)
 	} else {
 		log.Printf("(%s) Received duplicate message: %s - %s", reqID, in.Topic, msg)
 	}
