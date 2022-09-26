@@ -167,10 +167,12 @@ func (s *server) OnInvoke(ctx context.Context, in *commonv1pb.InvokeRequest) (*c
 
 func (s *server) getMessages(reqID string) []byte {
 	resp := receivedMessagesResponse{
-		ReceivedByTopicA:   receivedMessagesA.List(),
-		ReceivedByTopicB:   receivedMessagesB.List(),
-		ReceivedByTopicC:   receivedMessagesC.List(),
-		ReceivedByTopicRaw: receivedMessagesRaw.List(),
+		ReceivedByTopicA:          receivedMessagesA.List(),
+		ReceivedByTopicB:          receivedMessagesB.List(),
+		ReceivedByTopicC:          receivedMessagesC.List(),
+		ReceivedByTopicRaw:        receivedMessagesRaw.List(),
+		ReceivedByTopicRawBulkSub: receivedMessagesRawBulkSub.List(),
+		ReceivedByTopicCEBulkSub:  receivedMessagesCEBulkSub.List(),
 	}
 
 	rawResp, _ := json.Marshal(resp)
@@ -366,7 +368,7 @@ func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.Top
 				continue
 			}
 			msg = ceMsg["data"].(string)
-			log.Printf("(%s) Value of ce event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, msg)
+			log.Printf("(%s) Value of ce event in bulk subscribe for entryID: %s: %s", reqID, entry.EntryID, msg)
 		} else {
 			// var rawMsg
 			err := json.Unmarshal(entry.Event, &msg)
@@ -379,7 +381,7 @@ func (s *server) OnBulkTopicEventAlpha1(ctx context.Context, in *runtimev1pb.Top
 				}
 				continue
 			}
-			log.Printf("(%s) Value of raw event in bulk subscribe for entryID: %s: %v", reqID, entry.EntryID, msg)
+			log.Printf("(%s) Value of raw event in bulk subscribe for entryID: %s: %s", reqID, entry.EntryID, msg)
 			// Raw data does not have content-type, so it is handled as-is.
 			// Because the publisher encodes to JSON before publishing, we need to decode here.
 			// var actualMsg string
