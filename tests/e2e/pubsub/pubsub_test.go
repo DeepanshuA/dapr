@@ -370,16 +370,16 @@ func testPublishSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscr
 	return subscriberExternalURL
 }
 
-func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, subscriberAppName, protocol string) string {
-	callInitialize(t, subscriberAppName, publisherExternalURL, protocol)
+func testPublishBulkSubscribeSuccessfully(t *testing.T, publisherExternalURL, subscriberExternalURL, _, bulkSubscriberAppName, protocol string) string {
+	callInitialize(t, bulkSubscriberAppName, publisherExternalURL, protocol)
 	// set to respond with success
-	// setDesiredResponse(t, subscriberAppName, "success-bulk", publisherExternalURL, protocol)
+	// setDesiredResponse(t, bulkSubscriberAppName, "success-bulk", publisherExternalURL, protocol)
 
 	log.Printf("Test publish bulk subscribe success flow\n")
 	sentMessages := testPublishForBulkSubscribe(t, publisherExternalURL, protocol)
 
 	time.Sleep(5 * time.Second)
-	validateMessagesReceivedWhenSomeTopicsBulkSubscribed(t, publisherExternalURL, subscriberAppName, protocol, false, sentMessages)
+	validateMessagesReceivedWhenSomeTopicsBulkSubscribed(t, publisherExternalURL, bulkSubscriberAppName, protocol, false, sentMessages)
 	return subscriberExternalURL
 }
 
