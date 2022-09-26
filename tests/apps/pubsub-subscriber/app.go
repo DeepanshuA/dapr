@@ -496,12 +496,12 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
 		switch desiredResponse {
-		case respondWithRetry:
-			log.Printf("(%s) Responding with RETRY for entryID %s", reqID, msg.EntryID)
-			entryResponse.EntryID = msg.EntryID
-			entryResponse.Status = "RETRY"
-			bulkResponseEntries[i] = entryResponse
-			continue
+		// case respondWithRetry:
+		// 	log.Printf("(%s) Responding with RETRY for entryID %s", reqID, msg.EntryID)
+		// 	entryResponse.EntryID = msg.EntryID
+		// 	entryResponse.Status = "RETRY"
+		// 	bulkResponseEntries[i] = entryResponse
+		// 	continue
 		case respondWithSuccessBulk:
 			log.Printf("(%s) Responding with SUCCESS for entryID %s", reqID, msg.EntryID)
 			entryResponse.EntryID = msg.EntryID
@@ -520,7 +520,7 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("(%s) Responding with DROP during bulk subscribe. %s", reqID, errorMessage)
 				entryResponse.Status = "DROP"
 			}
-			continue
+			// continue
 		}
 	}
 
