@@ -495,33 +495,33 @@ func bulkSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	for i, msg := range msgs {
 		entryResponse := BulkSubscribeResponseEntry{}
 		log.Printf("(%s) bulkSubscribeHandler called %s.Index: %d, Message: %s", reqID, r.URL, i, msg)
-		switch desiredResponse {
+		// switch desiredResponse {
 		// case respondWithRetry:
 		// 	log.Printf("(%s) Responding with RETRY for entryID %s", reqID, msg.EntryID)
 		// 	entryResponse.EntryID = msg.EntryID
 		// 	entryResponse.Status = "RETRY"
 		// 	bulkResponseEntries[i] = entryResponse
 		// 	continue
-		case respondWithSuccessBulk:
-			log.Printf("(%s) Responding with SUCCESS for entryID %s", reqID, msg.EntryID)
-			entryResponse.EntryID = msg.EntryID
-			entryResponse.Status = "SUCCESS"
-			bulkResponseEntries[i] = entryResponse
+		// case respondWithSuccessBulk:
+		log.Printf("(%s) Responding with SUCCESS for entryID %s", reqID, msg.EntryID)
+		entryResponse.EntryID = msg.EntryID
+		entryResponse.Status = "SUCCESS"
+		bulkResponseEntries[i] = entryResponse
 
-			if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
-				receivedMessagesBulkRaw.Insert(msg.EventStr)
-			} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkSubTopic) && !receivedMessagesBulkCE.Has(msg.EventStr) {
-				receivedMessagesBulkCE.Insert(msg.EventStr)
-			} else {
-				// This case is triggered when there is multiple redelivery of same message or a message
-				// is thre for an unknown URL path
+		if strings.HasSuffix(r.URL.String(), pubsubRawBulkSubTopic) && !receivedMessagesBulkRaw.Has(msg.EventStr) {
+			receivedMessagesBulkRaw.Insert(msg.EventStr)
+		} else if strings.HasSuffix(r.URL.String(), pubsubCEBulkSubTopic) && !receivedMessagesBulkCE.Has(msg.EventStr) {
+			receivedMessagesBulkCE.Insert(msg.EventStr)
+		} else {
+			// This case is triggered when there is multiple redelivery of same message or a message
+			// is thre for an unknown URL path
 
-				errorMessage := fmt.Sprintf("Unexpected/Multiple redelivery of message during bulk susbcribe from %s", r.URL.String())
-				log.Printf("(%s) Responding with DROP during bulk subscribe. %s", reqID, errorMessage)
-				entryResponse.Status = "DROP"
-			}
-			// continue
+			errorMessage := fmt.Sprintf("Unexpected/Multiple redelivery of message during bulk susbcribe from %s", r.URL.String())
+			log.Printf("(%s) Responding with DROP during bulk subscribe. %s", reqID, errorMessage)
+			entryResponse.Status = "DROP"
 		}
+		// continue
+		// }
 	}
 
 	w.WriteHeader(http.StatusOK)
