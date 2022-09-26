@@ -15,6 +15,7 @@
 # e.g. E2E_TEST_APPS=hellodapr state service_invocation
 E2E_TEST_APPS=pubsub-publisher \
 pubsub-subscriber \
+pubsub-bulk-subscriber \
 pluggable_redis-pubsub \
 
 # PERFORMANCE test app list
