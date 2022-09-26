@@ -80,7 +80,7 @@ func (a *DaprRuntime) bulkSubscribeTopic(ctx context.Context, policy resiliency.
 		if msg.Metadata == nil {
 			msg.Metadata = make(map[string]string, 1)
 		}
-
+		log.Infof("bulk message received from pub/sub %s, topic %s, length %d", psName, topic, len(msg.Entries))
 		msg.Metadata[pubsubName] = psName
 		bulkSubDiag := newBulkSubIngressDiagnostics()
 		bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(msg.Entries))
@@ -330,6 +330,7 @@ func (a *DaprRuntime) publishBulkMessageHTTP(ctx context.Context, msg *pubsubBul
 	spans = spans[:n]
 	defer endSpans(spans)
 	start := time.Now()
+	log.Infof("invoking app's method: %s on topic: %s", msg.path, msg.topic)
 	resp, err := a.appChannel.InvokeMethod(ctx, req)
 	elapsed := diag.ElapsedSince(start)
 
