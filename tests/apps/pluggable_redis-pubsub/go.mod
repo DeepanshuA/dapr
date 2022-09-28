@@ -6,7 +6,7 @@ replace github.com/dapr/dapr => ../../../
 
 require (
 	github.com/dapr-sandbox/components-go-sdk v0.0.0-20220927185000-8d47e9bd6e69
-	github.com/dapr/components-contrib v1.8.0-rc.1.0.20220928041101-518f5a7abf9c
+	github.com/dapr/components-contrib v1.8.0-rc.1.0.20220928165547-d29c0d6200f7
 	github.com/dapr/kit v0.0.2
 )
 
