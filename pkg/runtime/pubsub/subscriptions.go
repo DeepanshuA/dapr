@@ -69,7 +69,7 @@ type (
 	}
 )
 
-func GetSubscriptionsHTTP(channel channel.AppChannel, log logger.Logger, r resiliency.Provider, resiliencyEnabled bool) ([]Subscription, error) {
+func GetSubscriptionsHTTP(channel channel.AppChannel, log logger.Logger, r resiliency.Provider) ([]Subscription, error) {
 	req := invokev1.NewInvokeMethodRequest("dapr/subscribe").
 		WithHTTPExtension(http.MethodGet, "").
 		WithContentType(invokev1.JSONContentType)
@@ -78,16 +78,16 @@ func GetSubscriptionsHTTP(channel channel.AppChannel, log logger.Logger, r resil
 	policyDef := r.BuiltInPolicy(resiliency.BuiltInInitializationRetries)
 	if policyDef != nil && policyDef.HasRetries() {
 		req.WithReplay(true)
+	}
 
-		policyRunner := resiliency.NewRunnerWithOptions(context.TODO(), policyDef,
-			resiliency.RunnerOpts[*invokev1.InvokeMethodResponse]{
-				Disposer: resiliency.DisposerCloser[*invokev1.InvokeMethodResponse],
-			},
-		)
-		resp, err = policyRunner(func(ctx context.Context) (*invokev1.InvokeMethodResponse, error) {
-			return channel.InvokeMethod(ctx, req)
-		})
-
+	policyRunner := resiliency.NewRunnerWithOptions(context.TODO(), policyDef,
+		resiliency.RunnerOpts[*invokev1.InvokeMethodResponse]{
+			Disposer: resiliency.DisposerCloser[*invokev1.InvokeMethodResponse],
+		},
+	)
+	resp, err := policyRunner(func(ctx context.Context) (*invokev1.InvokeMethodResponse, error) {
+		return channel.InvokeMethod(ctx, req)
+	})
 	if err != nil {
 		return nil, err
 	}
