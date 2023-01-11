@@ -75,17 +75,9 @@ func GetSubscriptionsHTTP(channel channel.AppChannel, log logger.Logger, r resil
 		WithContentType(invokev1.JSONContentType)
 	defer req.Close()
 
-	var (
-		resp *invokev1.InvokeMethodResponse
-		err  error
-	)
-
-	// TODO: Use only resiliency once it is no longer a preview feature.
-	if resiliencyEnabled {
-		policyDef := r.BuiltInPolicy(resiliency.BuiltInInitializationRetries)
-		if policyDef.HasRetries() {
-			req.WithReplay(true)
-		}
+	policyDef := r.BuiltInPolicy(resiliency.BuiltInInitializationRetries)
+	if policyDef != nil && policyDef.HasRetries() {
+		req.WithReplay(true)
 
 		policyRunner := resiliency.NewRunnerWithOptions(context.TODO(), policyDef,
 			resiliency.RunnerOpts[*invokev1.InvokeMethodResponse]{
@@ -95,16 +87,6 @@ func GetSubscriptionsHTTP(channel channel.AppChannel, log logger.Logger, r resil
 		resp, err = policyRunner(func(ctx context.Context) (*invokev1.InvokeMethodResponse, error) {
 			return channel.InvokeMethod(ctx, req)
 		})
-	} else {
-		req.WithReplay(true)
-
-		backoff := getSubscriptionsBackoff()
-		resp, err = retry.NotifyRecoverWithData(func() (*invokev1.InvokeMethodResponse, error) {
-			return channel.InvokeMethod(context.TODO(), req)
-		}, backoff, func(err error, d time.Duration) {
-			log.Debug("failed getting http subscriptions, starting retry")
-		}, func() {})
-	}
 
 	if err != nil {
 		return nil, err
