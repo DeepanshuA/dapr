@@ -824,6 +824,7 @@ func (a *api) getComponent(componentKind string, componentName string) (componen
 // GetComponentHealthAlpha1 returns the health of components.
 // If a componentName is specified, it returns the health of that component.
 // If no componentName is specified, it returns the health of all components.
+// TEST TEST
 func (a *api) GetComponentHealthAlpha1(ctx context.Context, in *runtimev1pb.ComponentHealthRequest) (*runtimev1pb.ComponentHealthResponse, error) {
 	componentName := in.ComponentName
 	components := a.getComponentsFn()
