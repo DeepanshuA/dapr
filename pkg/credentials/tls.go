@@ -18,6 +18,7 @@ func TLSConfigFromCertAndKey(certPem, keyPem []byte, serverName string, rootCA *
 		RootCAs:            rootCA,
 		ServerName:         serverName,
 		Certificates:       []tls.Certificate{cert},
+		MinVersion:         tls.VersionTLS12,
 	}
 
 	return config, nil

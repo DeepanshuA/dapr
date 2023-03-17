@@ -80,6 +80,7 @@ func FromFlags() (*DaprRuntime, error) {
 	appHealthProbeInterval := flag.Int("app-health-probe-interval", int(apphealth.DefaultProbeInterval/time.Second), "Interval to probe for the health of the app in seconds")
 	appHealthProbeTimeout := flag.Int("app-health-probe-timeout", int(apphealth.DefaultProbeTimeout/time.Millisecond), "Timeout for app health probes in milliseconds")
 	appHealthThreshold := flag.Int("app-health-threshold", int(apphealth.DefaultThreshold), "Number of consecutive failures for the app to be considered unhealthy")
+	allowInsecureTLS := flag.Bool("allow-insecure-tls", false, "Allows TLS Handshake to succeed even when App Server is using TLS below 1.2")
 
 	loggerOptions := logger.DefaultOptions()
 	loggerOptions.AttachCmdFlags(flag.StringVar, flag.BoolVar)
@@ -305,6 +306,7 @@ func FromFlags() (*DaprRuntime, error) {
 		AppHealthProbeInterval:       healthProbeInterval,
 		AppHealthProbeTimeout:        healthProbeTimeout,
 		AppHealthThreshold:           healthThreshold,
+		AllowInsecureTLS:             *allowInsecureTLS,
 	})
 
 	// set environment variables
@@ -383,6 +385,12 @@ func FromFlags() (*DaprRuntime, error) {
 	if !globalConfig.IsFeatureEnabled(daprGlobalConfig.AppHealthCheck) && *enableAppHealthCheck {
 		log.Warnf("App health checks are a preview feature and require the %s feature flag to be enabled. See https://docs.dapr.io/operations/configuration/preview-features/ on how to enable preview features.", daprGlobalConfig.AppHealthCheck)
 		runtimeConfig.AppHealthCheck = nil
+	}
+
+	// TODO: Remove AllowInsecureTLS in Dapr 1.13
+	if !globalConfig.IsFeatureEnabled(daprGlobalConfig.AllowInsecureTLSForAppChannel) && *allowInsecureTLS {
+		log.Warnf("Allow Insecure TLS is a temporary allowance to handshake TLS below TLS 1.2, this would be removed in Dapr 1.13. See https://docs.dapr.io/operations/configuration/preview-features/ on how to enable preview features.", daprGlobalConfig.AllowInsecureTLSForAppChannel)
+		runtimeConfig. = nil
 	}
 
 	// Initialize metrics only if MetricSpec is enabled.

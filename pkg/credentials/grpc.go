@@ -31,6 +31,7 @@ func GetServerOptions(certChain *CertChain) ([]grpc.ServerOption, error) {
 		// Require cert verification
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}
 	opts = append(opts, grpc.Creds(credentials.NewTLS(config)))
 

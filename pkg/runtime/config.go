@@ -82,6 +82,7 @@ type Config struct {
 	DisableBuiltinK8sSecretStore bool
 	AppHealthCheck               *apphealth.Config
 	AppHealthCheckHTTPPath       string
+	AllowInsecureTLS             bool
 }
 
 // NewRuntimeConfigOpts contains options for NewRuntimeConfig.
