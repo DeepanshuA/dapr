@@ -82,12 +82,14 @@ func (be *actorBackend) CreateOrchestrationInstance(ctx context.Context, e *back
 	}
 
 	var workflowInstanceID string
+	var workflowActorType string
 	if es := e.GetExecutionStarted(); es == nil {
 		return errors.New("the history event must be an ExecutionStartedEvent")
 	} else if oi := es.GetOrchestrationInstance(); oi == nil {
 		return errors.New("the ExecutionStartedEvent did not contain orchestration instance information")
 	} else {
 		workflowInstanceID = oi.GetInstanceId()
+		workflowActorType = es.Name
 	}
 
 	eventData, err := backend.MarshalHistoryEvent(e)
@@ -99,7 +101,7 @@ func (be *actorBackend) CreateOrchestrationInstance(ctx context.Context, e *back
 	// request. Note that this request goes directly to the actor runtime, bypassing the API layer.
 	req := invokev1.
 		NewInvokeMethodRequest(CreateWorkflowInstanceMethod).
-		WithActor(WorkflowActorType, workflowInstanceID).
+		WithActor(workflowActorType, workflowInstanceID).
 		WithRawDataBytes(eventData).
 		WithContentType(invokev1.OctetStreamContentType)
 	defer req.Close()
@@ -172,10 +174,20 @@ func (be *actorBackend) AddNewOrchestrationEvent(ctx context.Context, id api.Ins
 		return err
 	}
 
+	var workflowActorType string
+	// TODO: this check needs to be verified
+	if es := e.GetExecutionStarted(); es == nil {
+		return errors.New("the history event must be an ExecutionStartedEvent")
+	} else if oi := es.GetOrchestrationInstance(); oi == nil {
+		return errors.New("the ExecutionStartedEvent did not contain orchestration instance information")
+	} else {
+		workflowActorType = es.Name
+	}
+
 	// Send the event to the corresponding workflow actor, which will store it in its event inbox.
 	req := invokev1.
 		NewInvokeMethodRequest(AddWorkflowEventMethod).
-		WithActor(WorkflowActorType, string(id)).
+		WithActor(workflowActorType, string(id)).
 		WithRawDataBytes(data).
 		WithContentType(invokev1.OctetStreamContentType)
 	defer req.Close()

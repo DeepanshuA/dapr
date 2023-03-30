@@ -71,7 +71,7 @@ func (ia *mockInternalActor) InvokeMethod(ctx context.Context, actorID string, m
 }
 
 // InvokeReminder implements InternalActor
-func (ia *mockInternalActor) InvokeReminder(ctx context.Context, actorID string, reminderName string, data []byte, dueTime string, period string) error {
+func (ia *mockInternalActor) InvokeReminder(ctx context.Context, actorType, actorID string, reminderName string, data []byte, dueTime string, period string) error {
 	r := &reminder{
 		Name:    reminderName,
 		ActorID: actorID,
@@ -84,7 +84,7 @@ func (ia *mockInternalActor) InvokeReminder(ctx context.Context, actorID string,
 }
 
 // InvokeTimer implements InternalActor
-func (*mockInternalActor) InvokeTimer(ctx context.Context, actorID string, timerName string, params []byte) error {
+func (*mockInternalActor) InvokeTimer(ctx context.Context, actorType, actorID string, timerName string, params []byte) error {
 	panic("unimplemented")
 }
 

@@ -84,11 +84,11 @@ func (wfe *WorkflowEngine) ConfigureGrpc(grpcServer *grpc.Server) {
 	wfLogger.Info("configuring workflow engine gRPC endpoint")
 	wfe.ConfigureExecutor(func(be backend.Backend) backend.Executor {
 		// Enable lazy auto-starting the worker only when a workflow app connects to fetch work items.
-		autoStartCallback := backend.WithOnGetWorkItemsConnectionCallback(func(ctx context.Context) error {
+		autoStartCallback := backend.WithOnGetWorkItemsConnectionCallback(func(ctx context.Context, wfNames, activityNames []string) error {
 			// NOTE: We don't propagate the context here because that would cause the engine to shut
 			//       down when the client disconnects and cancels the passed-in context. Once it starts
 			//       up, we want to keep the engine running until the runtime shuts down.
-			if err := wfe.Start(context.Background()); err != nil {
+			if err := wfe.Start(context.Background(), wfNames, activityNames); err != nil {
 				// This can happen if the workflow app connects before the sidecar has finished initializing.
 				// The client app is expected to continuously retry until successful.
 				return fmt.Errorf("failed to auto-start the workflow engine: %w", err)
@@ -147,7 +147,8 @@ func (wfe *WorkflowEngine) SetActorReminderInterval(interval time.Duration) {
 	wfe.activityActor.reminderInterval = interval
 }
 
-func (wfe *WorkflowEngine) Start(ctx context.Context) error {
+func (wfe *WorkflowEngine) Start(ctx context.Context, wfNames, activityNames []string) error {
+	// , wfNames, activityNames []string
 	// Start could theoretically get called by multiple goroutines concurrently
 	wfe.startMutex.Lock()
 	defer wfe.startMutex.Unlock()
@@ -163,11 +164,23 @@ func (wfe *WorkflowEngine) Start(ctx context.Context) error {
 		return errors.New("grpc executor is not yet configured")
 	}
 
-	for actorType, actor := range wfe.InternalActors() {
-		if err := wfe.actorRuntime.RegisterInternalActor(ctx, actorType, actor); err != nil {
-			return fmt.Errorf("failed to register workflow actor %s: %w", actorType, err)
+	for _, wfName := range wfNames {
+		actor := NewWorkflowActor(wfe.backend)
+		if err := wfe.actorRuntime.RegisterInternalActor(ctx, wfName, actor); err != nil {
+			return fmt.Errorf("failed to register workflow actor %s: %w", wfName, err)
 		}
 	}
+	for _, activity := range activityNames {
+		actor := NewActivityActor(wfe.backend)
+		if err := wfe.actorRuntime.RegisterInternalActor(ctx, activity, actor); err != nil {
+			return fmt.Errorf("failed to register activity actor %s: %w", activity, err)
+		}
+	}
+	// for actorType, actor := range wfe.InternalActors() {
+	// 	if err := wfe.actorRuntime.RegisterInternalActor(ctx, actorType, actor); err != nil {
+	// 		return fmt.Errorf("failed to register workflow actor %s: %w", actorType, err)
+	// 	}
+	// }
 
 	// TODO: Determine whether a more dynamic parallelism configuration is necessary.
 	parallelismOpts := backend.WithMaxParallelism(100)

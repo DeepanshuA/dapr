@@ -234,7 +234,7 @@ func TestStartWorkflowEngine(t *testing.T) {
 	engine := getEngine()
 	grpcServer := grpc.NewServer()
 	engine.ConfigureGrpc(grpcServer)
-	err := engine.Start(ctx)
+	err := engine.Start(ctx, []string{"CreateOrderWorkflow"}, []string{"NotifyActivity"})
 	assert.NoError(t, err)
 }
 
@@ -721,7 +721,7 @@ func startEngine(ctx context.Context, r *task.TaskRegistry) (backend.TaskHubClie
 		client = backend.NewTaskHubClient(be)
 		return task.NewTaskExecutor(r)
 	})
-	if err := engine.Start(ctx); err != nil {
+	if err := engine.Start(ctx, []string{"CreateOrderWorkflow"}, []string{"NotifyActivity"}); err != nil {
 		panic(err)
 	}
 	return client, engine

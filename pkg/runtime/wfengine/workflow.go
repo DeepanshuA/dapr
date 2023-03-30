@@ -102,7 +102,7 @@ func (wf *workflowActor) InvokeMethod(ctx context.Context, actorID string, metho
 }
 
 // InvokeReminder implements actors.InternalActor
-func (wf *workflowActor) InvokeReminder(ctx context.Context, actorID string, reminderName string, data []byte, dueTime string, period string) error {
+func (wf *workflowActor) InvokeReminder(ctx context.Context, actorType, actorID string, reminderName string, data []byte, dueTime string, period string) error {
 	wfLogger.Debugf("invoking reminder '%s' on workflow actor '%s'", reminderName, actorID)
 
 	// Workflow executions should never take longer than a few seconds at the most
@@ -134,7 +134,7 @@ func (wf *workflowActor) InvokeReminder(ctx context.Context, actorID string, rem
 }
 
 // InvokeTimer implements actors.InternalActor
-func (wf *workflowActor) InvokeTimer(ctx context.Context, actorID string, timerName string, params []byte) error {
+func (wf *workflowActor) InvokeTimer(ctx context.Context, actorType, actorID string, timerName string, params []byte) error {
 	return errors.New("timers are not implemented")
 }
 

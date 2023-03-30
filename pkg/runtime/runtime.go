@@ -586,6 +586,7 @@ func (a *DaprRuntime) appHealthReadyInit(opts *runtimeOpts) {
 	// Load app configuration (for actors) and init actors
 	a.loadAppConfiguration()
 
+	a.runtimeConfig.PlacementAddresses = []string{"localhost:50005"}
 	if len(a.runtimeConfig.PlacementAddresses) != 0 {
 		err = a.initActors()
 		if err != nil {
@@ -1779,6 +1780,7 @@ func (a *DaprRuntime) initState(s componentsV1alpha1.Component) error {
 		}
 
 		// when placement address list is not empty, set specified actor store.
+		a.runtimeConfig.PlacementAddresses = []string{"localhost:50005"}
 		if len(a.runtimeConfig.PlacementAddresses) != 0 {
 			// set specified actor store if "actorStateStore" is true in the spec.
 			actorStoreSpecified := props[actorStateStore]

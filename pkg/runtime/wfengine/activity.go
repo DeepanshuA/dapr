@@ -99,7 +99,7 @@ func (a *activityActor) InvokeMethod(ctx context.Context, actorID string, method
 }
 
 // InvokeReminder implements actors.InternalActor and executes the activity logic.
-func (a *activityActor) InvokeReminder(ctx context.Context, actorID string, reminderName string, data []byte, dueTime string, period string) error {
+func (a *activityActor) InvokeReminder(ctx context.Context, actorType, actorID string, reminderName string, data []byte, dueTime string, period string) error {
 	wfLogger.Debugf("invoking reminder '%s' on activity actor '%s'", reminderName, actorID)
 
 	var generation uint64
@@ -113,7 +113,7 @@ func (a *activityActor) InvokeReminder(ctx context.Context, actorID string, remi
 	timeoutCtx, cancelTimeout := context.WithTimeout(ctx, a.defaultTimeout)
 	defer cancelTimeout()
 
-	if err := a.executeActivity(timeoutCtx, actorID, reminderName, state.EventPayload); err != nil {
+	if err := a.executeActivity(timeoutCtx, actorType, actorID, reminderName, state.EventPayload); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			wfLogger.Warnf("%s: execution of '%s' timed-out and will be retried later", actorID, reminderName)
 
@@ -136,7 +136,7 @@ func (a *activityActor) InvokeReminder(ctx context.Context, actorID string, remi
 	return actors.ErrReminderCanceled
 }
 
-func (a *activityActor) executeActivity(ctx context.Context, actorID string, name string, eventPayload []byte) error {
+func (a *activityActor) executeActivity(ctx context.Context, actorType, actorID string, name string, eventPayload []byte) error {
 	taskEvent, err := backend.UnmarshalHistoryEvent(eventPayload)
 	if err != nil {
 		return err
@@ -197,7 +197,7 @@ loop:
 	}
 	req := invokev1.
 		NewInvokeMethodRequest(AddWorkflowEventMethod).
-		WithActor(WorkflowActorType, workflowID).
+		WithActor(actorType, workflowID).
 		WithRawDataBytes(resultData).
 		WithContentType(invokev1.OctetStreamContentType)
 	defer req.Close()
@@ -211,7 +211,7 @@ loop:
 }
 
 // InvokeTimer implements actors.InternalActor
-func (*activityActor) InvokeTimer(ctx context.Context, actorID string, timerName string, params []byte) error {
+func (*activityActor) InvokeTimer(ctx context.Context, actorType, actorID string, timerName string, params []byte) error {
 	return errors.New("timers are not implemented")
 }
 

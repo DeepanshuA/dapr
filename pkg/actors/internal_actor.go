@@ -37,8 +37,8 @@ type InternalActor interface {
 	DeactivateActor(ctx context.Context, actorID string) error
 	// InvokeReminder invokes reminder logic for an internal actor.
 	// Note that the DecodeInternalActorReminderData function should be used to decode the [data] parameter.
-	InvokeReminder(ctx context.Context, actorID string, reminderName string, data []byte, dueTime string, period string) error
-	InvokeTimer(ctx context.Context, actorID string, timerName string, params []byte) error
+	InvokeReminder(ctx context.Context, actorType, actorID string, reminderName string, data []byte, dueTime string, period string) error
+	InvokeTimer(ctx context.Context, actorType, actorID string, timerName string, params []byte) error
 }
 
 type internalActorChannel struct {
@@ -136,10 +136,10 @@ func (c *internalActorChannel) InvokeMethod(ctx context.Context, req *invokev1.I
 			if dataBytes, err = json.Marshal(reminderInfo.Data); err != nil {
 				return nil, fmt.Errorf("failed to convert reminderInfo.Data back to JSON: %w", err)
 			}
-			err = actor.InvokeReminder(ctx, actorID, reminderName, dataBytes, reminderInfo.DueTime, reminderInfo.Period)
+			err = actor.InvokeReminder(ctx, actorType, actorID, reminderName, dataBytes, reminderInfo.DueTime, reminderInfo.Period)
 		} else if strings.HasPrefix(methodName, "timer/") {
 			timerName := strings.TrimPrefix(methodName, "timer/")
-			err = actor.InvokeTimer(ctx, actorID, timerName, requestData)
+			err = actor.InvokeTimer(ctx, actorType, actorID, timerName, requestData)
 		} else {
 			result, err = actor.InvokeMethod(ctx, actorID, methodName, requestData)
 		}
