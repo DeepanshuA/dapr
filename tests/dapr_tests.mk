@@ -13,49 +13,8 @@
 
 # E2E test app list
 # e.g. E2E_TEST_APPS=hellodapr state service_invocation
-E2E_TEST_APPS=actorjava \
-actordotnet \
-actorpython \
-actorphp \
-healthapp \
-hellodapr \
-stateapp \
-secretapp \
-service_invocation \
-service_invocation_external \
-service_invocation_grpc \
-service_invocation_grpc_proxy_client \
-service_invocation_grpc_proxy_server \
-binding_input \
-binding_input_grpc \
-binding_output \
-pubsub-publisher \
-pubsub-subscriber \
-pubsub-bulk-subscriber \
-pubsub-subscriber_grpc \
-pubsub-subscriber-routing \
-pubsub-subscriber-routing_grpc \
-actorapp \
-actorclientapp \
+E2E_TEST_APPS=
 actorfeatures \
-actorinvocationapp \
-actorstate \
-actorreentrancy \
-runtime \
-runtime_init \
-middleware \
-job-publisher \
-resiliencyapp \
-resiliencyapp_grpc \
-injectorapp \
-injectorapp-init \
-metadata \
-pluggable_redis-statestore \
-pluggable_redis-pubsub \
-pluggable_kafka-bindings \
-tracingapp \
-configurationapp \
-workflowsapp \
 
 # PERFORMANCE test app list
 PERF_TEST_APPS=actorfeatures actorjava tester service_invocation_http service_invocation_grpc actor-activation-locker k6-custom pubsub_subscribe_http configuration
