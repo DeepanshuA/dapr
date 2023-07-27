@@ -20,7 +20,8 @@ import (
 
 const (
 	// defaultImageRegistry is the registry used by test apps by default.
-	defaultImageRegistry = "docker.io/dapriotest"
+	defaultImageRegistry = "mydapraks007acr.azurecr.io"
+	// "docker.io/dapriotest"
 	// defaultImageTag is the default image used for test apps.
 	defaultImageTag = "latest"
 )
