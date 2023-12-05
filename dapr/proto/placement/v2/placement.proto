@@ -1,0 +1,163 @@
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+syntax = "proto3";
+
+package dapr.proto.placement.v1;
+
+option go_package = "github.com/dapr/dapr/pkg/proto/placement/v1;placement";
+
+// Placement service is used to report Dapr runtime host status.
+service Placement {
+  // Reports Dapr actor status and retrieves actor placement table.
+  rpc ReportDaprStatus(stream Host) returns (stream PlacementOrder) {}
+
+  // ConnectActorHost is used by the Dapr sidecar to register itself as an actor host.
+  // It remains active as a long-lived bi-di stream to allow for the Placement service
+  // to communicate with the sidecar, including for health-checks.
+  rpc ConnectActorHost(stream ConnectActorHostClientStream) returns (stream ConnectActorHostServerStream) {}
+
+  // LookupActor returns the address of an actor.
+  // If the actor is not active yet, it returns the address of an actor host capable of hosting it.
+  rpc LookupActor(LookupActorRequest) returns (LookupActorResponse) {}
+
+  // ReportActorDeactivation is sent to report an actor that has been deactivated.
+  rpc ReportActorDeactivation(ReportActorDeactivationRequest) returns (ReportActorDeactivationResponse) {}
+}
+
+message PlacementOrder {
+  PlacementTables tables = 1;
+  string operation = 2;
+}
+
+message PlacementTables {
+  map<string, PlacementTable> entries = 1;
+  string version = 2;
+  // Minimum observed version of the Actor APIs supported by connected runtimes
+  uint32 api_level = 3;
+}
+
+message PlacementTable {
+  map<uint64, string> hosts = 1;
+  repeated uint64 sorted_set = 2;
+  map<string, Host> load_map = 3;
+  int64 total_load = 4;
+}
+
+message Host {
+  string name = 1;
+  int64 port = 2;
+  int64 load = 3;
+  repeated string entities = 4;
+  string id = 5;
+  string pod = 6;
+  // Version of the Actor APIs supported by the Dapr runtime
+  uint32 api_level = 7;
+}
+
+// ConnectActorHostClientStream is sent by the Dapr sidecar to the Placement service.
+// The first message in the stream must contain the required fields; subsequent messages could be empty, but including fields is allowed to provide updates.
+message ConnectActorHostClientStream {
+  // Message to include.
+  // This is optional, and no message indicates a simple ping (for health checks).
+  // However, the first message sent must include a RegisterActorHost.
+  oneof message {
+      // The first message sent in ConnectActorHost by the sidecar must contain RegisterActorHost.
+      // The sidecar can re-send this message at any time to update its registration.
+      RegisterActorHost register_actor_host = 1;
+  }
+}
+
+// RegisterActorHost is sent by the Dapr sidecar to the Actors service.
+// It includes information on the current sidecar's actor hosting capabilities.
+message RegisterActorHost {
+  // Address, including port
+  // Required on the first message; cannot be updated
+  string address = 1;
+  // Dapr App ID
+  // Format is 'namespace/app-id' or just 'app-id'
+  // Required on the first message; cannot be updated
+  string app_id = 2;
+  // Version of the Actor APIs supported by the Dapr runtime
+  // Required on the first message; cannot be updated
+  uint32 api_level = 3;
+  // List of supported actor types.
+  repeated ActorHostType actor_types = 4;
+}
+
+// ActorHostType references a supported actor type.
+message ActorHostType {
+  // Actor type name
+  string actor_type = 1;
+  // Actor idle timeout, in seconds
+  uint32 idle_timeout = 2;
+}
+
+// ConnectActorHostServerStream is sent by the Actors service to the Dapr sidecar.
+// The message could be empty, in which case it acts as a response to a "ping" message.
+message ConnectActorHostServerStream {
+  // Message to include.
+  // This is optional, and no message indicates a simple ping.
+  oneof message {
+      // Send certain configuration options for the actor subsystem to the actor host.
+      // This is normally sent in response to the first message from the actor host, but can be sent as update at any time.
+      ActorHostConfiguration actor_host_configuration = 1;
+      // Deactivate an actor
+      DeactivateActor deactivate_actor = 2;
+  }
+}
+
+// ActorHostConfiguration is one of the messages that can be sent by ConnectActorHostServerStream.
+// It contains certain configuration options for the actor subsystem.
+// This is normally sent in response to the first message from the actor host, but can be sent as update at any time.
+message ActorHostConfiguration {
+  // Maximum interval for the actor host to send pings to the actors service.
+  uint32 health_check_interval = 1;
+}
+
+// ActorRef contains the reference to an actor.
+message ActorRef {
+  string actor_type = 1;
+  string actor_id = 2;
+}
+
+// DeactivateActor is one of the messages that cna be sent by ConnectActorHostServerStream.
+// It is sent to tell the sidecar to deactivate an actor.
+message DeactivateActor {
+    ActorRef actor = 1;
+}
+
+message LookupActorRequest {
+    // Actor reference.
+    ActorRef actor = 1;
+    // Always fetch from the database, and do not return cached values if present.
+    bool no_cache = 2;
+}
+
+message LookupActorResponse {
+    // Dapr App ID of the host
+    string app_id = 1;
+    // Host address (including port)
+    string address = 2;
+    // Actor idle timeout, in seconds
+    // (Note that this is the absolute idle timeout, and not the remaining lifetime of the actor)
+    uint32 idle_timeout = 3;
+}
+
+message ReportActorDeactivationRequest {
+    ActorRef actor = 1;
+}
+
+message ReportActorDeactivationResponse {
+    // Empty for now
+}
